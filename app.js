@@ -385,6 +385,203 @@ function initMic(btnId, inputId) {
 initMic("scenario-mic-btn", "scenario-input");
 initMic("open-mic-btn", "open-input");
 
+/* ==================== AI 语音（qwen-omni 直连大模型） ==================== */
+
+const AI = (() => {
+  let stream = null;
+  let mr = null;
+  let chunks = [];
+  let activeBtn = null;
+
+  function supported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  }
+
+  function pickMimeType() {
+    const types = ["audio/webm", "audio/mp4", "audio/ogg"];
+    for (const t of types) if (window.MediaRecorder.isTypeSupported(t)) return t;
+    return "";
+  }
+
+  async function start(btn) {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mime = pickMimeType();
+    mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    chunks = [];
+    mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    mr.start(200);
+    activeBtn = btn;
+  }
+
+  function stop() {
+    return new Promise((resolve, reject) => {
+      if (!mr) return reject(new Error("未在录音"));
+      mr.onstop = () => {
+        if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+        const type = (mr && mr.mimeType) || "audio/webm";
+        const blob = new Blob(chunks, { type });
+        mr = null;
+        activeBtn = null;
+        resolve(blob);
+      };
+      mr.onerror = () => reject(new Error("录音失败"));
+      try { mr.stop(); } catch (e) { reject(e); }
+    });
+  }
+
+  function isRecording() { return !!activeBtn; }
+
+  function blobToBase64(blob) {
+    return new Promise(resolve => {
+      const r = new FileReader();
+      r.onloadend = () => resolve(String(r.result || "").split(",")[1] || "");
+      r.readAsDataURL(blob);
+    });
+  }
+
+  async function call(task, audioBase64, opts) {
+    const cfg = window.BACKEND_CONFIG || {};
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return { ok: false, error: "未配置后端" };
+    if (!Store.code) return { ok: false, error: "请先绑定同步码（点右上角「同步码」）" };
+    try {
+      const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/audio-eval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY },
+        body: JSON.stringify({
+          sync_code: Store.code,
+          task,
+          audio_base64: audioBase64,
+          system_prompt: opts.systemPrompt || "",
+          user_text: opts.userText || "",
+          history: opts.history || [],
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}` };
+      return { ok: true, text: data.text };
+    } catch (e) {
+      return { ok: false, error: "调用失败：" + (e && e.message || e) };
+    }
+  }
+
+  return { supported, start, stop, isRecording, blobToBase64, call };
+})();
+
+const EVAL_SYSTEM = "你是专业的英语口语教练。请先逐字转写用户说的英语，然后从语法、用词、流利度、自然度几个维度评测，指出错误并给出更地道的说法。用中文回复，结构清晰，先给结论再给细节。";
+
+function showAiResult(resultEl, text, isError) {
+  resultEl.classList.remove("hidden");
+  resultEl.classList.toggle("ai-error", !!isError);
+  resultEl.querySelector(".ai-result-header").textContent = isError ? "AI 评测出错" : "AI 智能评测";
+  resultEl.querySelector(".ai-text").textContent = text;
+}
+
+// 通用 AI 评测：点按钮开始录音，再点一次停止并发送
+async function aiEval(btn, resultEl, buildPrompt) {
+  if (!AI.supported()) { toast("当前浏览器不支持录音，请用 Chrome / Edge / Safari", "bad"); return; }
+
+  if (AI.isRecording()) {
+    btn.disabled = true;
+    try {
+      const blob = await AI.stop();
+      btn.textContent = "AI 评测中…";
+      const b64 = await AI.blobToBase64(blob);
+      const { systemPrompt, userText } = buildPrompt();
+      const res = await AI.call("eval", b64, { systemPrompt, userText });
+      if (!res.ok) showAiResult(resultEl, res.error, true);
+      else showAiResult(resultEl, res.text, false);
+    } catch (e) {
+      showAiResult(resultEl, "录音失败：" + (e && e.message || e), true);
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove("recording");
+      btn.textContent = "AI 智能评测";
+    }
+  } else {
+    try {
+      await AI.start(btn);
+      btn.classList.add("recording");
+      btn.textContent = "正在听…（点此停止）";
+    } catch (e) {
+      toast("无法访问麦克风，请允许权限后重试", "bad");
+    }
+  }
+}
+
+/* ---------- AI 对话 ---------- */
+
+const CHAT_ROLES = {
+  friend: { label: "自由对话", system: "你是一位英语口语对话伙伴，用英语和用户进行自然、友好的日常对话。" },
+  waiter: { label: "餐厅服务员", system: "你扮演一位餐厅服务员，用户是来吃饭的顾客。用英语接待、点单、回应需求。" },
+  interviewer: { label: "面试官", system: "你扮演一位面试官，正在面试用户。用英语提出面试问题，根据用户回答自然追问。" },
+  shop: { label: "商店店员", system: "你扮演一位商店店员，用户是来买东西的顾客。用英语接待、介绍商品、回答询问。" },
+  colleague: { label: "同事", system: "你扮演用户的一位同事，用英语进行工作场景的对话，讨论工作、项目和日常。" },
+};
+
+const CHAT_FORMAT = "\n\n你的回复必须严格按以下两行格式输出，不要输出其他任何内容：\nTRANSCRIPT: 用户刚才说的英语原文转写\nREPLY: 你的英语对话回复（1-3 句话，自然）";
+
+let chatHistory = []; // [{role:"user"|"assistant", text}]
+
+function renderChatLog() {
+  const log = $("chat-log");
+  if (!chatHistory.length) {
+    log.innerHTML = `<div class="chat-empty">选个角色，点下方按钮开始说话，AI 会用英语跟你对话。</div>`;
+    return;
+  }
+  log.innerHTML = chatHistory.map(m =>
+    m.role === "user"
+      ? `<div class="chat-msg chat-user"><div class="chat-bubble">${escapeHtml(m.text)}</div></div>`
+      : `<div class="chat-msg chat-ai"><div class="chat-bubble">${escapeHtml(m.text)}</div></div>`
+  ).join("");
+  log.scrollTop = log.scrollHeight;
+}
+
+async function chatTurn() {
+  const btn = $("chat-mic-btn");
+  if (!AI.supported()) { toast("当前浏览器不支持录音，请用 Chrome / Edge / Safari", "bad"); return; }
+
+  if (AI.isRecording()) {
+    btn.disabled = true;
+    try {
+      const blob = await AI.stop();
+      btn.textContent = "AI 思考中…";
+      const b64 = await AI.blobToBase64(blob);
+      const role = CHAT_ROLES[$("chat-role").value] || CHAT_ROLES.friend;
+      const res = await AI.call("chat", b64, {
+        systemPrompt: role.system + CHAT_FORMAT,
+        history: chatHistory.slice(-10),
+      });
+      if (!res.ok) {
+        toast(res.error, "bad");
+      } else {
+        // 解析 TRANSCRIPT / REPLY
+        const t = res.text || "";
+        const tm = t.match(/TRANSCRIPT:?\s*([\s\S]*?)(?=REPLY:?|$)/i);
+        const rm = t.match(/REPLY:?\s*([\s\S]*)/i);
+        const transcript = (tm ? tm[1] : "").trim() || "（未听清）";
+        const reply = (rm ? rm[1] : t).trim();
+        chatHistory.push({ role: "user", text: transcript });
+        chatHistory.push({ role: "assistant", text: reply || "…" });
+        renderChatLog();
+      }
+    } catch (e) {
+      toast("录音或识别失败：" + (e && e.message || e), "bad");
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove("recording");
+      btn.textContent = "🎤 开始说话";
+    }
+  } else {
+    try {
+      await AI.start(btn);
+      btn.classList.add("recording");
+      btn.textContent = "正在听…（点此停止）";
+    } catch (e) {
+      toast("无法访问麦克风，请允许权限后重试", "bad");
+    }
+  }
+}
+
 /* ==================== 状态显示 ==================== */
 
 function renderAuthStatus() {
@@ -531,9 +728,11 @@ document.querySelectorAll(".tab").forEach(btn => {
     currentMode = btn.dataset.mode;
     $("scenario-mode").classList.toggle("hidden", currentMode !== "scenario");
     $("open-mode").classList.toggle("hidden", currentMode !== "open");
+    $("chat-mode").classList.toggle("hidden", currentMode !== "chat");
     $("stats-mode").classList.toggle("hidden", currentMode !== "stats");
-    $("cat-tabs").classList.toggle("hidden", currentMode === "stats");
+    $("cat-tabs").classList.toggle("hidden", currentMode === "stats" || currentMode === "chat");
     if (currentMode === "stats") renderStats();
+    if (currentMode === "chat") renderChatLog();
   });
 });
 
@@ -619,6 +818,36 @@ $("bind-code").addEventListener("input", e => {
 $("export-btn").addEventListener("click", () => {
   Store.exportJSON();
   toast("已导出 JSON 备份");
+});
+
+/* ---------- AI 语音事件绑定 ---------- */
+
+$("scenario-ai-btn").addEventListener("click", () => {
+  aiEval($("scenario-ai-btn"), $("scenario-ai-result"), () => {
+    const s = getScenarios()[scenarioIdx];
+    return {
+      systemPrompt: EVAL_SYSTEM,
+      userText: `我正在练习这个场景（中文）：${s.prompt}\n标准参考说法：${s.answers.join(" / ")}`,
+    };
+  });
+});
+
+$("open-ai-btn").addEventListener("click", () => {
+  aiEval($("open-ai-btn"), $("open-ai-result"), () => {
+    const q = getOpens()[openIdx];
+    return {
+      systemPrompt: EVAL_SYSTEM,
+      userText: `我正在练习这个开放问题（中文）：${q.prompt}\n${q.hints && q.hints.length ? "回答要点提示：" + q.hints.join("；") : ""}`,
+    };
+  });
+});
+
+$("chat-mic-btn").addEventListener("click", chatTurn);
+$("chat-clear-btn").addEventListener("click", () => { chatHistory = []; renderChatLog(); });
+$("chat-role").addEventListener("change", () => {
+  chatHistory = [];
+  renderChatLog();
+  toast("已切换角色，对话已重置");
 });
 
 /* ==================== 初始化 ==================== */

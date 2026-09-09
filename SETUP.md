@@ -1,82 +1,104 @@
-# 多端同步配置说明
+# 配置说明
 
-同步方式：**同步码**。每台设备生成或输入同一个 8 位码，练习记录就自动合并、跨设备互通。不需要注册、不需要邮箱、不依赖任何第三方 SDK。
+这个项目有两块后端能力，都需要在 Supabase 里各做一次配置：
 
-| 步骤 | 内容 | 状态 |
+| 功能 | 依赖 | 状态 |
 |---|---|---|
-| 1 | 注册 Supabase，建项目 | 已完成 |
-| 2 | 填 `config.js`（URL + anon key） | 已完成 |
-| 3 | SQL Editor 执行 `supabase-sync-schema.sql` | **待做** |
-| 4 | 浏览器里生成 / 输入同步码，开始用 | 待做 |
+| 多端同步（同步码） | `supabase-sync-schema.sql` 建表 + RPC | ✅ 已完成 |
+| AI 语音评测 / 对话 | Edge Function `audio-eval` + 千问 key | **待部署** |
 
 ---
 
-## 你现在要做的事：执行第 3 步（建表 + 开权限）
+## 一、多端同步（已完成）
 
-之前的邮箱模式用了另一个 SQL 文件（`supabase-schema.sql`），那份已经作废删除。**新的同步码模式需要重新执行这份** `supabase-sync-schema.sql`。
+8 位同步码方案，跨设备合并练习记录。之前已经在 SQL Editor 执行过 `supabase-sync-schema.sql`，无需再操作。
 
-1. 打开 <https://supabase.com/dashboard/project/jumdscnowxsicowfgwnx>
-2. 左侧 **SQL Editor** → **New query**
-3. 把 `supabase-sync-schema.sql` 整段粘贴进去 → **Run**
+自检：`sync_pull` / `sync_push` 两个函数可调用，匿名直接读表被 401 拒绝。
 
-这份 SQL 可重复执行（幂等），即使之前跑过旧的也不会冲突。
+---
 
-### 这份 SQL 做了什么（为什么必须执行）
+## 二、AI 语音功能（待部署）
 
-同步码没有登录身份，如果还像邮箱模式那样开放表读写，任何人都能用公开密钥拉走**所有用户**的数据。所以它做了三件事：
+现在前端已经接好了「AI 智能评测」和「AI 对话」两个入口，但它们要调一个后端代理函数 `audio-eval`——这个函数负责**藏着你的千问 API key 去调 qwen-omni-turbo**（key 绝不进前端，前端是公开的 GitHub Pages）。
 
-1. 给 `attempts` 表加 `sync_code` 列
-2. **撤销匿名用户直接读写表**的权限
-3. 只暴露两个函数作为唯一入口：`sync_pull`（按码拉取）、`sync_push`（按码写入）——函数内部强制按同步码过滤，**拿不到码就查不到任何东西**
+你只需要做两件事：**① 部署函数，② 把千问 key 设成环境变量**。
 
-### 执行成功的自检
+### 方式 A：Supabase CLI（推荐，一次装好）
 
-在 SQL Editor 里跑文件末尾这段（把 `--` 注释去掉即可）：
+在终端里依次执行：
 
-```sql
-select
-  (select count(*) from information_schema.role_table_grants
-    where grantee = 'anon' and table_name = 'attempts'
-      and privilege_type = 'SELECT') as anon_可读表,
-  (select relrowsecurity from pg_class
-    where relname = 'attempts') as rls_已开启,
-  (select count(*) from information_schema.role_routine_grants
-    where grantee = 'anon'
-      and routine_name in ('sync_pull','sync_push')) as anon_可调函数;
+```bash
+# 1. 安装 CLI（macOS，二选一）
+brew install supabase/tap/supabase
+# 或：npm install -g supabase
+
+# 2. 登录（会打开浏览器授权）
+supabase login
+
+# 3. 进入项目目录，关联到你的 Supabase 项目
+cd /Users/yangqijun/CodexCLI/english-speaking
+supabase init          # 若提示已存在则跳过
+supabase link --project-ref jumdscnowxsicowfgwnx
+
+# 4. 设置千问 key（把 <你的千问key> 换成 sk- 开头的真实值）
+supabase secrets set DASHSCOPE_API_KEY=<你的千问key>
+
+# 5. 部署函数
+supabase functions deploy audio-eval
 ```
 
-三列应分别是 **0 / t / 2**。`anon_可读表` 为 0 是关键——说明匿名请求已经不能直接扫全表了。
+部署成功后，函数地址是 `https://jumdscnowxsicowfgwnx.supabase.co/functions/v1/audio-eval`。
+
+### 方式 B：Supabase 控制台手动
+
+1. 打开 <https://supabase.com/dashboard/project/jumdscnowxsicowfgwnx>
+2. 左侧 **Edge Functions** → **New function**（或 **Deploy a new function**）
+3. 函数名填 `audio-eval`
+4. 把本目录 `supabase/functions/audio-eval/index.ts` 的**全部内容**粘贴进去
+5. 在函数的 **Secrets / 环境变量** 里添加一条：`DASHSCOPE_API_KEY` = `你的千问 key`
+6. 点 **Deploy**
+
+### 部署成功的自检
+
+在终端跑（或浏览器控制台）：
+
+```bash
+curl -X POST "https://jumdscnowxsicowfgwnx.supabase.co/functions/v1/audio-eval" \
+  -H "Authorization: Bearer <你的 anon key>" \
+  -H "Content-Type: application/json" \
+  -d '{"sync_code":"TESTSYNC","task":"eval","audio_base64":"AAAA"}'
+```
+
+- 返回 `{"error":"需要有效的同步码才能使用 AI 语音功能"}` → ✅ 函数已部署，防滥用校验生效
+- 返回 `{"code":"NOT_FOUND",...}` → ❌ 函数还没部署成功
 
 ---
 
-## 第 4 步：开始使用
+## 三、开始使用
 
-执行完 SQL，打开线上地址 <https://nicholaszhao-zhenglin.github.io/ENGLISH-SPEAKING/>：
-
-1. 点右上角 **同步码**
-2. 第一台设备：点 **生成我的同步码**，会显示一串如 `K7M2-9XQ4` 的码，**复制并记下来**
-3. 第二台设备：打开同页 → **同步码** → 切到「输入已有的码」→ 填那串码 → **绑定并同步**
-
-两边记录自动合并。之后任何一台练的题都会同步到云端，换设备继续。
-
----
+1. 线上地址 <https://nicholaszhao-zhenglin.github.io/ENGLISH-SPEAKING/>
+2. 右上角 **同步码** → 生成 / 输入同步码（AI 语音功能**要求已绑定同步码**，这是防别人白嫖你千问额度的钥匙）
+3. **情景模拟** / **真实问答** 页：点绿色「AI 智能评测」→ 说一句英语 → 再点一次停止 → 大模型直接听懂并给你语法/用词/流利度反馈
+4. **AI 对话** 页：选角色（服务员/面试官/店员…）→ 点「开始说话」→ 说完点停止 → AI 用英语回你，多轮对话
 
 ## 常见问题
 
 | 现象 | 原因与处理 |
 |---|---|
-| 点「生成」或「绑定」后，记录面板显示"连不上后端 / 有 N 条待同步" | 正常，SQL 还没执行或网络抖动。数据已存在本机，联网后自动补传 |
-| 页面提示"后端函数不存在（HTTP 404）" | 第 3 步的 SQL 没执行，回去执行 |
-| 状态条显示"未配置后端" | `config.js` 里的 URL 或 key 没填对，或没推上 gh-pages |
-| 换了设备输入码，两边记录没合并 | 确认两边填的是同一个码（不区分大小写，中间的 `-` 可省略） |
+| 点「AI 智能评测」提示"需要有效的同步码" | 还没绑定同步码，先点右上角「同步码」绑定 |
+| 提示"服务端未配置 DASHSCOPE_API_KEY" | Edge Function 部署了但没设 key，补设环境变量 |
+| 提示"录音失败 / 无法访问麦克风" | 浏览器没授权麦克风；或 Safari 旧版不支持，换 Chrome/Edge |
+| 录音后一直转圈 / 超时 | qwen 音频理解要几秒属正常；若长期超时检查网络 |
+| AI 对话回复里混着 TRANSCRIPT/REPLY | 偶发的模型格式不稳定，重试一次即可 |
 
 ## 安全须知
 
-- **同步码就是钥匙**，拿到它的人能看你的练习记录，别发到公开场合
-- 忘记码怎么办：因为码只存在你本机，没有找回机制。建议生成后随手存进手机备忘录或密码管理器
-- 「换一个」会作废旧码，已绑定旧码的设备需要重新绑定；本机数据不丢，会归到新码下
+- **同步码是钥匙**，拿到它的人能看你的练习记录、还能白嫖你的 AI 语音额度，别发到公开场合
+- **千问 key 不要写进任何会进 GitHub 仓库的文件**（`config.js`、`SETUP.md` 等）。它只应存在于 Supabase 的环境变量里
+- 忘记同步码没有找回机制，建议生成后存进手机备忘录
 
-## 两个长期注意
+## 长期注意
 
-1. **免费项目连续 1 周无请求会自动暂停。** 去控制台点 Restore 恢复即可，数据不丢。
-2. **免费层没有自动备份。** 练习记录只有一份，偶尔点「导出」存一份 JSON 到本地。
+1. 免费项目连续 1 周无请求会自动暂停，去控制台 Restore 即可，数据不丢。
+2. 免费层没有自动备份，偶尔点「导出」存一份 JSON。
+3. 千问 `qwen-omni-turbo` 免费额度 100 万 token、180 天有效，个人练习用不完。

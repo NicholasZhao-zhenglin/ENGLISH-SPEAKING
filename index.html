@@ -25,6 +25,7 @@
     <nav class="mode-tabs" data-page-node-id="u5ZiP9ru0rGR7Cykeg70sh">
       <button class="tab active" data-mode="scenario" data-page-node-id="gO9OYB912OeVgg58l74ZBh">情景模拟</button>
       <button class="tab" data-mode="open" data-page-node-id="yJAhzOPkPjo0Ju3pOFYTBM">真实问答</button>
+      <button class="tab" data-mode="chat" data-page-node-id="chat-tab-node">AI 对话</button>
       <button class="tab" data-mode="stats" data-page-node-id="fNahTd8dCHI2cir1lUYEAq">我的记录</button>
     </nav>
 
@@ -50,6 +51,12 @@
             <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
           </button>
           <button id="scenario-check-btn" class="primary-btn" data-page-node-id="W024l4aimxepku3DdVOUvF">提交对比</button>
+          <button id="scenario-ai-btn" class="ai-btn" type="button">AI 智能评测</button>
+        </div>
+
+        <div id="scenario-ai-result" class="ai-result hidden" data-page-node-id="scenario-ai-result-node">
+          <div class="ai-result-header">AI 智能评测</div>
+          <p id="scenario-ai-text" class="ai-text"></p>
         </div>
 
         <div id="scenario-result" class="result hidden" data-page-node-id="AqW8ESKViqbfQeteZaB6vm">
@@ -86,6 +93,12 @@
             <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
           </button>
           <button id="open-check-btn" class="primary-btn" data-page-node-id="ZpxX1UucvoOxxsyDFHYsFX">提交检查</button>
+          <button id="open-ai-btn" class="ai-btn" type="button">AI 智能评测</button>
+        </div>
+
+        <div id="open-ai-result" class="ai-result hidden" data-page-node-id="open-ai-result-node">
+          <div class="ai-result-header">AI 智能评测</div>
+          <p id="open-ai-text" class="ai-text"></p>
         </div>
 
         <div id="open-result" class="result hidden" data-page-node-id="GYazKfXBIQPRnssWfQvtWb">
@@ -94,6 +107,29 @@
             <span id="open-score" data-page-node-id="8dHGTnVq6LhVLH7lArierT"></span>
           </div>
           <ul id="open-feedback" data-page-node-id="GHvXWbd7AWjtVXK4vPhd1W"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI 对话 -->
+    <section id="chat-mode" class="panel hidden" data-page-node-id="chat-mode-node">
+      <div class="scenario-card chat-card" data-page-node-id="chat-card-node">
+        <div class="scenario-meta" data-page-node-id="chat-meta-node">
+          <span id="chat-label" data-page-node-id="chat-label-node">AI 情景对话</span>
+          <select id="chat-role" data-page-node-id="chat-role-node">
+            <option value="friend">自由对话</option>
+            <option value="waiter">餐厅服务员</option>
+            <option value="interviewer">面试官</option>
+            <option value="shop">商店店员</option>
+            <option value="colleague">同事</option>
+          </select>
+        </div>
+        <div id="chat-log" class="chat-log" data-page-node-id="chat-log-node">
+          <div class="chat-empty">选个角色，点下方按钮开始说话，AI 会用英语跟你对话。</div>
+        </div>
+        <div class="input-actions chat-actions" data-page-node-id="chat-actions-node">
+          <button id="chat-mic-btn" class="ai-btn" type="button">🎤 开始说话</button>
+          <button id="chat-clear-btn" class="ghost-btn" type="button">清空对话</button>
         </div>
       </div>
     </section>
