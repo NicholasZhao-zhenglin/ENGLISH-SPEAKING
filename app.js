@@ -51,7 +51,7 @@ const SCENARIOS = [
 const OPEN_QUESTIONS = [
   {
     title: "服务员询问",
-    prompt: "服务员问："先生，您需要什么？"你可能会说什么？（自由回答）",
+    prompt: "服务员问：'先生，您需要什么？'你可能会说什么？（自由回答）",
     hints: ["说明想要的食物或饮品", "使用礼貌句式 Would like / Could I have"]
   },
   {
