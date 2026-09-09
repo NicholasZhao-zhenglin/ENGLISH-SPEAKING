@@ -23,8 +23,8 @@
     </div>
 
     <nav class="mode-tabs" data-page-node-id="u5ZiP9ru0rGR7Cykeg70sh">
-      <button class="tab active" data-mode="scenario" data-page-node-id="gO9OYB912OeVgg58l74ZBh">情景模拟</button>
-      <button class="tab" data-mode="open" data-page-node-id="yJAhzOPkPjo0Ju3pOFYTBM">真实问答</button>
+      <button class="tab active" data-mode="learn" data-page-node-id="learn-tab-node">今日学习</button>
+      <button class="tab" data-mode="practice" data-page-node-id="practice-tab-node">自由练习</button>
       <button class="tab" data-mode="chat" data-page-node-id="chat-tab-node">AI 对话</button>
       <button class="tab" data-mode="stats" data-page-node-id="fNahTd8dCHI2cir1lUYEAq">我的记录</button>
     </nav>
@@ -34,81 +34,147 @@
       <button class="cat-tab" data-cat="work" data-page-node-id="5q83M2204jGw0IAUzFev9v">工作</button>
     </nav>
 
-    <!-- 情景模拟 -->
-    <section id="scenario-mode" class="panel" data-page-node-id="2q9JelcQ5bXiWFo8tEagxl">
-      <div class="scenario-card" data-page-node-id="Ey05rTmySGGj0ks1y14Uya">
-        <div class="scenario-meta" data-page-node-id="vETh4LwVdF151ei8JJL4cl">
-          <span id="scenario-index" data-page-node-id="9HENBsuFk4lGqKhE9VDHK7">情景 1 / 5</span>
-          <button id="next-scenario-btn" class="ghost-btn" data-page-node-id="jV06ut1nhVAaiUMtHXU2on">下一个情景 →</button>
-        </div>
-        <h2 id="scenario-title" data-page-node-id="isHTB8H4vsQ4GRDNse6mU5">食堂点菜</h2>
-        <p class="scenario-prompt" id="scenario-prompt" data-page-node-id="N0O6pVnKcXiLJxw8PVTIqs">你正在食堂点菜，怎么叫服务员，并告诉他你想要一杯热水？</p>
-
-        <textarea id="scenario-input" rows="4" placeholder="用英语输入你的回答，或点下方麦克风直接说…"></textarea>
-        <div class="input-actions" data-page-node-id="scenario-actions-node">
-          <button id="scenario-mic-btn" class="mic-btn" type="button" data-page-node-id="scenario-mic-node">
-            <span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>语音输入</span>
-            <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
-          </button>
-          <button id="scenario-check-btn" class="primary-btn" data-page-node-id="W024l4aimxepku3DdVOUvF">提交对比</button>
-          <button id="scenario-ai-btn" class="ai-btn" type="button">AI 智能评测</button>
-        </div>
-
-        <div id="scenario-ai-result" class="ai-result hidden" data-page-node-id="scenario-ai-result-node">
-          <div class="ai-result-header">AI 智能评测</div>
-          <p id="scenario-ai-text" class="ai-text"></p>
-        </div>
-
-        <div id="scenario-result" class="result hidden" data-page-node-id="AqW8ESKViqbfQeteZaB6vm">
-          <div class="result-header" data-page-node-id="u88OULUkzL9cOUUCtq7pCj">
-            <span id="scenario-verdict" data-page-node-id="q29XAZHyHq39r3NzsEbrdX"></span>
-            <span id="scenario-score" data-page-node-id="rUFHZlsCbMNnQjIYGobvUv"></span>
+    <!-- 今日学习：5 句一组，每天学一个小版块 -->
+    <section id="learn-mode" class="panel" data-page-node-id="learn-mode-node">
+      <!-- 学习视图 -->
+      <div id="learn-view" data-page-node-id="learn-view-node">
+        <div class="learn-card" data-page-node-id="learn-card-node">
+          <div class="learn-meta" data-page-node-id="learn-meta-node">
+            <span id="learn-progress" class="learn-progress"></span>
+            <select id="learn-jump" class="learn-jump" data-page-node-id="learn-jump-node"></select>
           </div>
-          <p class="result-label" data-page-node-id="Y13HhqP7C8HP4BZfr1hoVn">标准答案：</p>
-          <p id="scenario-expected" class="answer-line" data-page-node-id="yksrjQiH02XpXvNotwnMRd"></p>
-          <p class="result-label" data-page-node-id="9nqKJiSWYhCTB422InA7dv">逐词对比：</p>
-          <p id="scenario-diff" class="diff-line" data-page-node-id="0ZHAathlWuFoSKsvOHT3hm"></p>
-          <p class="result-label" data-page-node-id="ysqMz3EAqVv8pMfF9KG2Pj">其他可接受说法：</p>
-          <ul id="scenario-alt" data-page-node-id="zwmgNEp5AYqt5iEHHlXaC2"></ul>
+          <div class="learn-topic" data-page-node-id="learn-topic-node">
+            <span id="learn-icon"></span>
+            <span id="learn-topic-title"></span>
+          </div>
+          <h2 id="learn-unit-title" class="learn-unit-title" data-page-node-id="learn-unit-title-node"></h2>
+          <ol id="learn-sentences" class="learn-sentences" data-page-node-id="learn-sentences-node"></ol>
+
+          <details class="learn-summary" data-page-node-id="learn-summary-node">
+            <summary>📌 学完看知识要点（建议先自己说出来再看答案）</summary>
+            <ul id="learn-summary-list" class="learn-summary-list"></ul>
+          </details>
+
+          <div class="learn-actions" data-page-node-id="learn-actions-node">
+            <button id="learn-quiz-btn" class="primary-btn" data-page-node-id="learn-quiz-btn-node">开始测试 →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 测试视图 -->
+      <div id="quiz-view" class="hidden" data-page-node-id="quiz-view-node">
+        <div class="quiz-card" data-page-node-id="quiz-card-node">
+          <div class="quiz-meta">
+            <span id="quiz-unit-label"></span>
+            <span id="quiz-progress"></span>
+          </div>
+          <div id="quiz-question-area" class="quiz-question-area"></div>
+          <div class="quiz-actions">
+            <button id="quiz-exit-btn" class="ghost-btn">返回学习</button>
+            <button id="quiz-prev-btn" class="ghost-btn">上一题</button>
+            <button id="quiz-next-btn" class="primary-btn">下一题</button>
+            <button id="quiz-submit-btn" class="primary-btn hidden">提交并查看结果</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 测试结果视图 -->
+      <div id="quiz-result-view" class="hidden" data-page-node-id="quiz-result-view-node">
+        <div class="quiz-result-card" data-page-node-id="quiz-result-card-node">
+          <h3 id="quiz-result-title"></h3>
+          <p id="quiz-result-score" class="quiz-score"></p>
+          <ul id="quiz-result-detail" class="quiz-result-detail"></ul>
+          <div class="quiz-result-actions">
+            <button id="quiz-back-btn" class="ghost-btn">返回学习</button>
+            <button id="quiz-next-unit-btn" class="primary-btn">下一个版块 →</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- 真实问答 -->
-    <section id="open-mode" class="panel hidden" data-page-node-id="Pa1Vw8YgzQsIt2oo6MaII7">
-      <div class="scenario-card" data-page-node-id="vXYSds6H4SNPNQ1OZE88i7">
-        <div class="scenario-meta" data-page-node-id="5q8opI28lGW4QFp9dADJd6">
-          <span id="open-index" data-page-node-id="54hB7YImAGve6mjThxwNxr">问题 1 / 5</span>
-          <button id="next-open-btn" class="ghost-btn" data-page-node-id="lWEMkISLwSLpqoVR9CMELa">下一个问题 →</button>
-        </div>
-        <h2 id="open-title" data-page-node-id="YaouVD3V2LvJYtLiKdeNww">服务员询问</h2>
-        <p class="scenario-prompt" id="open-prompt" data-page-node-id="nfUHHbrP7B8F92N5cMxOT7">服务员问：“先生，您需要什么？”你可能会说什么？（自由回答）</p>
+    <!-- 自由练习：合并原情景模拟 + 真实问答 -->
+    <section id="practice-mode" class="panel hidden" data-page-node-id="practice-mode-node">
+      <nav class="sub-tabs" data-page-node-id="sub-tabs-node">
+        <button class="sub-tab active" data-sub="scenario">情景模拟</button>
+        <button class="sub-tab" data-sub="open">真实问答</button>
+      </nav>
 
-        <div id="open-hints" class="hints" data-page-node-id="QEArYkW3lEemPFg3IHm0En"></div>
-
-        <textarea id="open-input" rows="5" placeholder="用英语自由输入你的回答，或点下方麦克风直接说…"></textarea>
-        <div class="input-actions" data-page-node-id="open-actions-node">
-          <button id="open-mic-btn" class="mic-btn" type="button" data-page-node-id="open-mic-node">
-            <span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>语音输入</span>
-            <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
-          </button>
-          <button id="open-check-btn" class="primary-btn" data-page-node-id="ZpxX1UucvoOxxsyDFHYsFX">提交检查</button>
-          <button id="open-ai-btn" class="ai-btn" type="button">AI 智能评测</button>
-        </div>
-
-        <div id="open-ai-result" class="ai-result hidden" data-page-node-id="open-ai-result-node">
-          <div class="ai-result-header">AI 智能评测</div>
-          <p id="open-ai-text" class="ai-text"></p>
-        </div>
-
-        <div id="open-result" class="result hidden" data-page-node-id="GYazKfXBIQPRnssWfQvtWb">
-          <div class="result-header" data-page-node-id="nQ5yMCx8UXKJBJ0aRmNaOj">
-            <span id="open-verdict" data-page-node-id="TgDIStK7peJH2FVZLVBmw3"></span>
-            <span id="open-score" data-page-node-id="8dHGTnVq6LhVLH7lArierT"></span>
+      <!-- 情景模拟 -->
+      <section id="scenario-mode" class="sub-panel" data-page-node-id="2q9JelcQ5bXiWFo8tEagxl">
+        <div class="scenario-card" data-page-node-id="Ey05rTmySGGj0ks1y14Uya">
+          <div class="scenario-meta" data-page-node-id="vETh4LwVdF151ei8JJL4cl">
+            <span id="scenario-index" data-page-node-id="9HENBsuFk4lGqKhE9VDHK7">情景 1 / 5</span>
+            <button id="next-scenario-btn" class="ghost-btn" data-page-node-id="jV06ut1nhVAaiUMtHXU2on">下一个情景 →</button>
           </div>
-          <ul id="open-feedback" data-page-node-id="GHvXWbd7AWjtVXK4vPhd1W"></ul>
+          <h2 id="scenario-title" data-page-node-id="isHTB8H4vsQ4GRDNse6mU5">食堂点菜</h2>
+          <p class="scenario-prompt" id="scenario-prompt" data-page-node-id="N0O6pVnKcXiLJxw8PVTIqs">你正在食堂点菜，怎么叫服务员，并告诉他你想要一杯热水？</p>
+
+          <textarea id="scenario-input" rows="4" placeholder="用英语输入你的回答，或点下方麦克风直接说…"></textarea>
+          <div class="input-actions" data-page-node-id="scenario-actions-node">
+            <button id="scenario-mic-btn" class="mic-btn" type="button" data-page-node-id="scenario-mic-node">
+              <span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>语音输入</span>
+              <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
+            </button>
+            <button id="scenario-check-btn" class="primary-btn" data-page-node-id="W024l4aimxepku3DdVOUvF">提交对比</button>
+            <button id="scenario-ai-btn" class="ai-btn" type="button">AI 智能评测</button>
+          </div>
+
+          <div id="scenario-ai-result" class="ai-result hidden" data-page-node-id="scenario-ai-result-node">
+            <div class="ai-result-header">AI 智能评测</div>
+            <p id="scenario-ai-text" class="ai-text"></p>
+          </div>
+
+          <div id="scenario-result" class="result hidden" data-page-node-id="AqW8ESKViqbfQeteZaB6vm">
+            <div class="result-header" data-page-node-id="u88OULUkzL9cOUUCtq7pCj">
+              <span id="scenario-verdict" data-page-node-id="q29XAZHyHq39r3NzsEbrdX"></span>
+              <span id="scenario-score" data-page-node-id="rUFHZlsCbMNnQjIYGobvUv"></span>
+            </div>
+            <p class="result-label" data-page-node-id="Y13HhqP7C8HP4BZfr1hoVn">标准答案：</p>
+            <p id="scenario-expected" class="answer-line" data-page-node-id="yksrjQiH02XpXvNotwnMRd"></p>
+            <p class="result-label" data-page-node-id="9nqKJiSWYhCTB422InA7dv">逐词对比：</p>
+            <p id="scenario-diff" class="diff-line" data-page-node-id="0ZHAathlWuFoSKsvOHT3hm"></p>
+            <p class="result-label" data-page-node-id="ysqMz3EAqVv8pMfF9KG2Pj">其他可接受说法：</p>
+            <ul id="scenario-alt" data-page-node-id="zwmgNEp5AYqt5iEHHlXaC2"></ul>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <!-- 真实问答 -->
+      <section id="open-mode" class="sub-panel hidden" data-page-node-id="Pa1Vw8YgzQsIt2oo6MaII7">
+        <div class="scenario-card" data-page-node-id="vXYSds6H4SNPNQ1OZE88i7">
+          <div class="scenario-meta" data-page-node-id="5q8opI28lGW4QFp9dADJd6">
+            <span id="open-index" data-page-node-id="54hB7YImAGve6mjThxwNxr">问题 1 / 5</span>
+            <button id="next-open-btn" class="ghost-btn" data-page-node-id="lWEMkISLwSLpqoVR9CMELa">下一个问题 →</button>
+          </div>
+          <h2 id="open-title" data-page-node-id="YaouVD3V2LvJYtLiKdeNww">服务员询问</h2>
+          <p class="scenario-prompt" id="open-prompt" data-page-node-id="nfUHHbrP7B8F92N5cMxOT7">服务员问：“先生，您需要什么？”你可能会说什么？（自由回答）</p>
+
+          <div id="open-hints" class="hints" data-page-node-id="QEArYkW3lEemPFg3IHm0En"></div>
+
+          <textarea id="open-input" rows="5" placeholder="用英语自由输入你的回答，或点下方麦克风直接说…"></textarea>
+          <div class="input-actions" data-page-node-id="open-actions-node">
+            <button id="open-mic-btn" class="mic-btn" type="button" data-page-node-id="open-mic-node">
+              <span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>语音输入</span>
+              <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
+            </button>
+            <button id="open-check-btn" class="primary-btn" data-page-node-id="ZpxX1UucvoOxxsyDFHYsFX">提交检查</button>
+            <button id="open-ai-btn" class="ai-btn" type="button">AI 智能评测</button>
+          </div>
+
+          <div id="open-ai-result" class="ai-result hidden" data-page-node-id="open-ai-result-node">
+            <div class="ai-result-header">AI 智能评测</div>
+            <p id="open-ai-text" class="ai-text"></p>
+          </div>
+
+          <div id="open-result" class="result hidden" data-page-node-id="GYazKfXBIQPRnssWfQvtWb">
+            <div class="result-header" data-page-node-id="nQ5yMCx8UXKJBJ0aRmNaOj">
+              <span id="open-verdict" data-page-node-id="TgDIStK7peJH2FVZLVBmw3"></span>
+              <span id="open-score" data-page-node-id="8dHGTnVq6LhVLH7lArierT"></span>
+            </div>
+            <ul id="open-feedback" data-page-node-id="GHvXWbd7AWjtVXK4vPhd1W"></ul>
+          </div>
+        </div>
+      </section>
     </section>
 
     <!-- AI 对话 -->
@@ -183,6 +249,7 @@
 
   <script src="config.js"></script>
   <script src="store.js"></script>
+  <script src="curriculum.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

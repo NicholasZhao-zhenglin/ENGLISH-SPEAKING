@@ -257,9 +257,225 @@ function checkOpen() {
   saveAttempt("open", openIdx, q.title, input, score, { feedback });
 }
 
+/* ==================== 今日学习（curriculum）==================== */
+
+let currentLearnKey = null;       // unitKey，如 "life.dining.ordering"
+let currentQuizData = null;       // 当前 unit 对象
+let currentQuizAnswers = [];      // 每题用户选的索引
+
+function learnFindUnitByKey(key) {
+  if (!key) return null;
+  return curriculumAllUnits().find(x => x.key === key) || null;
+}
+
+function renderLearnJump() {
+  const sel = $("learn-jump");
+  if (!sel) return;
+  const all = curriculumAllUnits();
+  sel.innerHTML = "";
+  for (const x of all) {
+    const opt = document.createElement("option");
+    opt.value = x.key;
+    const done = Store.isCurriculumDone(x.key);
+    opt.textContent = `${CURRICULUM[x.cat].label} · ${x.topic.title} · ${x.unit.title}${done ? " ✓" : ""}`;
+    sel.appendChild(opt);
+  }
+  if (currentLearnKey) sel.value = currentLearnKey;
+}
+
+function renderLearnView() {
+  // 选择当前 unit：优先用 currentLearnKey；否则自动取下一个未完成
+  let pick = currentLearnKey ? learnFindUnitByKey(currentLearnKey) : null;
+  if (!pick) {
+    const next = curriculumNextPending();
+    pick = next || (() => { const a = curriculumAllUnits(); return a.length ? { cat: a[0].cat, topic: a[0].topic, unit: a[0].unit, key: a[0].key } : null; })();
+  }
+  if (!pick) {
+    $("learn-icon").textContent = "🎉";
+    $("learn-topic-title").textContent = "已学完全部内容";
+    $("learn-unit-title").textContent = "恭喜！";
+    $("learn-sentences").innerHTML = "<li class='learn-empty'>所有版块都已学完。可以在右上角跳选器重学任意版块，或去「自由练习」巩固。</li>";
+    $("learn-summary-list").innerHTML = "";
+    $("learn-quiz-btn").disabled = true;
+    $("learn-progress").textContent = "进度 100%";
+    return;
+  }
+  currentLearnKey = pick.key;
+  $("learn-icon").textContent = pick.topic.icon || "📚";
+  $("learn-topic-title").textContent = `${CURRICULUM[pick.cat].label} · ${pick.topic.title}`;
+  $("learn-unit-title").textContent = pick.unit.title;
+
+  // 5 句列表
+  const ol = $("learn-sentences");
+  ol.innerHTML = "";
+  for (const s of pick.unit.sentences) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="sentence-en">${escapeHtml(s[0])}</span>
+                    <span class="sentence-zh">${escapeHtml(s[1])}</span>
+                    <span class="sentence-tip">💡 ${escapeHtml(s[2])}</span>`;
+    ol.appendChild(li);
+  }
+
+  // 要点
+  const sl = $("learn-summary-list");
+  sl.innerHTML = "";
+  for (const item of pick.unit.summary) {
+    const li = document.createElement("li");
+    li.textContent = item;
+    sl.appendChild(li);
+  }
+
+  // 进度
+  const stats = curriculumStats(Store.curriculumDone);
+  $("learn-progress").textContent = `进度 ${stats.completed}/${stats.total}`;
+  $("learn-quiz-btn").disabled = false;
+  renderLearnJump();
+}
+
+function startQuiz() {
+  if (!currentLearnKey) { toast("暂无学习内容", "warn"); return; }
+  const pick = learnFindUnitByKey(currentLearnKey);
+  if (!pick || !pick.unit.quiz || !pick.unit.quiz.length) { toast("本版块无测试题", "warn"); return; }
+  currentQuizData = pick;
+  currentQuizAnswers = new Array(pick.unit.quiz.length).fill(null);
+  $("learn-view").classList.add("hidden");
+  $("quiz-result-view").classList.add("hidden");
+  $("quiz-view").classList.remove("hidden");
+  $("quiz-unit-label").textContent = `${CURRICULUM[pick.cat].label} · ${pick.topic.title} · ${pick.unit.title}`;
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion() {
+  const q = currentQuizData.unit.quiz;
+  const i = currentQuizAnswers.findIndex(a => a === null);
+  const idx = i === -1 ? q.length - 1 : i;
+  $("quiz-progress").textContent = `第 ${idx + 1} / ${q.length} 题`;
+  const area = $("quiz-question-area");
+  area.innerHTML = "";
+  const qText = document.createElement("div");
+  qText.className = "quiz-q-text";
+  qText.textContent = q[idx].q;
+  area.appendChild(qText);
+
+  const ul = document.createElement("ul");
+  ul.className = "quiz-options";
+  q[idx].options.forEach((opt, oi) => {
+    const li = document.createElement("li");
+    li.textContent = `${String.fromCharCode(65 + oi)}. ${opt}`;
+    if (currentQuizAnswers[idx] === oi) li.classList.add("selected");
+    li.addEventListener("click", () => {
+      currentQuizAnswers[idx] = oi;
+      renderQuizQuestion();
+      updateQuizButtons();
+    });
+    ul.appendChild(li);
+  });
+  area.appendChild(ul);
+  updateQuizButtons();
+}
+
+function updateQuizButtons() {
+  const total = currentQuizData.unit.quiz.length;
+  const answered = currentQuizAnswers.filter(a => a !== null).length;
+  const idx = currentQuizAnswers.findIndex(a => a === null);
+  const isLast = idx === -1;
+  $("quiz-prev-btn").disabled = idx <= 0;
+  $("quiz-next-btn").classList.toggle("hidden", isLast);
+  $("quiz-submit-btn").classList.toggle("hidden", !isLast);
+}
+
+function submitQuiz() {
+  const q = currentQuizData.unit.quiz;
+  let correct = 0;
+  const detail = [];
+  q.forEach((qi, i) => {
+    const userIdx = currentQuizAnswers[i];
+    const isOk = userIdx === qi.answer;
+    if (isOk) correct++;
+    detail.push({ idx: i, userIdx, correctIdx: qi.answer, isOk, q: qi.q, options: qi.options });
+  });
+  const score = Math.round(correct / q.length * 100);
+  Store.markCurriculumDone(currentQuizData.key, score);
+  // 也存进 attempts 让"我的记录"显示
+  Store.save({
+    category: currentQuizData.cat,
+    mode: "curriculum_quiz",
+    item_index: 0,
+    item_title: `${currentQuizData.topic.title} · ${currentQuizData.unit.title}`,
+    answer: `${correct}/${q.length}`,
+    score,
+    detail: { unitKey: currentQuizData.key, breakdown: detail },
+  });
+  renderQuizResult(correct, q.length, score, detail);
+}
+
+function renderQuizResult(correct, total, score, detail) {
+  $("quiz-view").classList.add("hidden");
+  $("quiz-result-view").classList.remove("hidden");
+  const passed = score >= 60;
+  $("quiz-result-title").textContent = passed ? "🎉 学完一个版块！" : "📝 本次测试未通过";
+  $("quiz-result-score").textContent = `${score} 分（${correct}/${total} 题）`;
+  const ul = $("quiz-result-detail");
+  ul.innerHTML = "";
+  detail.forEach(d => {
+    const li = document.createElement("li");
+    li.className = d.isOk ? "ok" : "bad";
+    li.innerHTML = `<span class="result-q">第 ${d.idx + 1} 题 · ${escapeHtml(d.q)}</span>
+                    <span class="result-meta">你的选择：${d.userIdx !== null ? String.fromCharCode(65 + d.userIdx) + ". " + escapeHtml(d.options[d.userIdx]) : "未作答"} ${d.isOk ? "✓" : "✗ 正确答案：" + String.fromCharCode(65 + d.correctIdx) + ". " + escapeHtml(d.options[d.correctIdx])}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function backToLearn() {
+  $("quiz-result-view").classList.add("hidden");
+  $("quiz-view").classList.add("hidden");
+  $("learn-view").classList.remove("hidden");
+  renderLearnView();
+}
+
+function jumpToNextUnit() {
+  const all = curriculumAllUnits();
+  const idx = all.findIndex(x => x.key === currentLearnKey);
+  if (idx === -1 || idx + 1 >= all.length) {
+    toast("已经是最后一个版块啦 🎉", "good");
+    backToLearn();
+    return;
+  }
+  currentLearnKey = all[idx + 1].key;
+  backToLearn();
+}
+
+$("learn-quiz-btn").addEventListener("click", startQuiz);
+$("quiz-prev-btn").addEventListener("click", () => {
+  const i = currentQuizAnswers.findIndex(a => a === null);
+  const prev = i === -1 ? currentQuizAnswers.length - 2 : i - 1;
+  if (prev < 0) return;
+  // 把当前空位挪到 prev：清空当前 idx、prev 之前的值移过来
+  // 简单实现：把 prev 题清空，让 findIndex 落在 prev
+  currentQuizAnswers[prev] = null;
+  renderQuizQuestion();
+});
+$("quiz-exit-btn").addEventListener("click", () => {
+  $("quiz-view").classList.add("hidden");
+  $("learn-view").classList.remove("hidden");
+});
+$("quiz-next-btn").addEventListener("click", () => {
+  const i = currentQuizAnswers.findIndex(a => a === null);
+  if (i === -1) return;
+  if (currentQuizAnswers[i] === null) { toast("请先选一个答案", "warn"); return; }
+  renderQuizQuestion();
+});
+$("quiz-submit-btn").addEventListener("click", submitQuiz);
+$("quiz-back-btn").addEventListener("click", backToLearn);
+$("quiz-next-unit-btn").addEventListener("click", jumpToNextUnit);
+$("learn-jump").addEventListener("change", e => {
+  currentLearnKey = e.target.value;
+  backToLearn();
+});
+
 /* ==================== 保存与提示 ==================== */
 
-let currentMode = "scenario";
+let currentMode = "learn";
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -781,13 +997,27 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     currentMode = btn.dataset.mode;
-    $("scenario-mode").classList.toggle("hidden", currentMode !== "scenario");
-    $("open-mode").classList.toggle("hidden", currentMode !== "open");
+    $("learn-mode").classList.toggle("hidden", currentMode !== "learn");
+    $("practice-mode").classList.toggle("hidden", currentMode !== "practice");
     $("chat-mode").classList.toggle("hidden", currentMode !== "chat");
     $("stats-mode").classList.toggle("hidden", currentMode !== "stats");
-    $("cat-tabs").classList.toggle("hidden", currentMode === "stats" || currentMode === "chat");
+    // cat-tabs 仅在 practice 时显示（生活/工作分类）
+    $("cat-tabs").classList.toggle("hidden", currentMode !== "practice");
     if (currentMode === "stats") renderStats();
     if (currentMode === "chat") renderChatLog();
+    if (currentMode === "learn") renderLearnView();
+    if (currentMode === "practice") renderScenario();
+  });
+});
+
+document.querySelectorAll(".sub-tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const sub = btn.dataset.sub;
+    document.querySelectorAll(".sub-tab").forEach(b => b.classList.toggle("active", b === btn));
+    $("scenario-mode").classList.toggle("hidden", sub !== "scenario");
+    $("open-mode").classList.toggle("hidden", sub !== "open");
+    if (sub === "scenario") renderScenario();
+    else renderOpen();
   });
 });
 
@@ -918,3 +1148,4 @@ switchCategory("life");
 renderAuthStatus();
 renderSyncState();
 renderStats();
+renderLearnView();

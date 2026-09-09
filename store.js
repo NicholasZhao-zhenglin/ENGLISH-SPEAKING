@@ -15,6 +15,7 @@ const Store = (() => {
   const LS_DATA = "esp_attempts_v1";
   const LS_CODE = "esp_sync_code_v1";
   const LS_PENDING = "esp_pending_v1";
+  const LS_CURRICULUM = "esp_curriculum_v1";
 
   // 去掉了容易看错的 I / L / O / 0 / 1
   const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -296,6 +297,34 @@ const Store = (() => {
     URL.revokeObjectURL(a.href);
   }
 
+  /* ---------- 课程（curriculum）进度 ---------- */
+  // 仅本地，不上云：跨设备同步意义不大（手机/电脑通常独立学），且 Supabase attempts 表
+  // 不适合存课程进度（结构不同）。如果以后真要同步，再单独建一张 curriculum_progress 表。
+
+  let curriculumDone = {};
+  try { curriculumDone = JSON.parse(localStorage.getItem(LS_CURRICULUM) || "{}"); } catch { curriculumDone = {}; }
+
+  function saveCurriculum() {
+    try { localStorage.setItem(LS_CURRICULUM, JSON.stringify(curriculumDone)); } catch {}
+  }
+
+  function markCurriculumDone(key, quizScore) {
+    curriculumDone[key] = {
+      completedAt: new Date().toISOString(),
+      quizScore: typeof quizScore === "number" ? Math.max(0, Math.min(100, quizScore)) : null,
+    };
+    saveCurriculum();
+    emit();
+  }
+
+  function isCurriculumDone(key) { return !!curriculumDone[key]; }
+
+  function resetCurriculum() {
+    curriculumDone = {};
+    saveCurriculum();
+    emit();
+  }
+
   /* ---------- 错误提示 ---------- */
 
   function friendlyError(e) {
@@ -319,10 +348,12 @@ const Store = (() => {
   return {
     init, onAuthChange, bindCode, createAndBind, unbind, sync,
     save, history, historyFor, stats, exportJSON, generateCode, normalize, isValidCode,
+    markCurriculumDone, isCurriculumDone, resetCurriculum,
     get mode() { return mode; },
     get code() { return code; },
     get degraded() { return degraded; },
     get pendingCount() { return pending.length; },
+    get curriculumDone() { return curriculumDone; },
     displayCode, friendlyError,
     isCloud: () => mode === "cloud",
     isSignedIn: () => mode === "cloud" && !!code,
