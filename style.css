@@ -117,6 +117,48 @@ input:focus { border-color: var(--primary); }
 
 .primary-btn:hover { background: var(--primary-dark); }
 
+/* 输入操作行：语音按钮 + 提交按钮 */
+.input-actions { display: flex; gap: 10px; align-items: stretch; }
+.input-actions .primary-btn { width: auto; flex: 1; }
+
+.mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .18s ease, color .18s ease, background .18s ease;
+  white-space: nowrap;
+}
+
+.mic-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.mic-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.mic-btn .mic-idle, .mic-btn .mic-active { display: inline-flex; align-items: center; gap: 7px; }
+.mic-btn .mic-active { display: none; }
+
+.mic-btn.mic-listening {
+  border-color: var(--bad);
+  color: #fff;
+  background: var(--bad);
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+.mic-btn.mic-listening .mic-idle { display: none; }
+.mic-btn.mic-listening .mic-active { display: inline-flex; }
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .35); }
+  50%      { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+
 .ghost-btn {
   background: none;
   border: none;

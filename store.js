@@ -27,6 +27,7 @@ const Store = (() => {
   let cache = [];          // 全部练习记录，按时间倒序
   let pending = [];        // 尚未成功推上云端的记录
   let degraded = false;    // 云端请求失败过 → 界面提示
+  let syncing = false;     // 同步锁：防止 push 并发导致云端重复
   const listeners = [];
 
   /* ---------- 本地读写 ---------- */
@@ -105,7 +106,7 @@ const Store = (() => {
       if (saved.length === CODE_LEN) {
         code = saved;
         // 后台静默同步，失败也不打断页面
-        sync().catch(() => {});
+        sync();
       }
     }
     emit();
@@ -126,9 +127,7 @@ const Store = (() => {
     localStorage.setItem(LS_CODE, c);
     emit(); // 界面立刻变成已绑定；同步在后台跑，结果通过 emit 反映到同步状态徽章
 
-    sync()
-      .then(emit)
-      .catch(() => { degraded = true; emit(); });
+    sync(); // 后台串行同步，结果通过 emit 反映到同步状态徽章
 
     return { ok: true, error: "" };
   }
@@ -171,40 +170,47 @@ const Store = (() => {
     return [r.category, r.mode, r.item_index, r.answer, r.score, t].join("|");
   }
 
+  // 只被 sync() 调用，串行执行，不会并发
   async function flush() {
-    if (mode !== "cloud" || !code || !pending.length) return;
+    if (!pending.length) return;
     const batch = pending.slice(0, 500);
-    try {
-      await rpc("sync_push", { p_code: code, p_rows: batch.map(toRow) });
-      pending = pending.slice(batch.length);
-      savePending();
-      degraded = false;
-    } catch {
-      degraded = true;
-    }
+    await rpc("sync_push", { p_code: code, p_rows: batch.map(toRow) });
+    pending = pending.slice(batch.length);
+    savePending();
   }
 
-  // 推本地未同步的 → 拉云端全量 → 合并去重 → 落本地
+  // 串行化：推 pending → 拉全量 → 按去重键合并 → 落本地。
+  // 循环直到两端一致；syncing 锁保证任何时刻只有一次同步在跑，
+  // 杜绝 save() 与后台 sync() 并发 push 同一条记录造成的重复。
   async function sync() {
-    if (mode !== "cloud" || !code) return;
-    await flush();
-    const rows = (await rpc("sync_pull", { p_code: code })) || [];
-    degraded = false;
+    if (mode !== "cloud" || !code || syncing) return;
+    syncing = true;
+    try {
+      let guard = 0;
+      while (guard++ < 10) {
+        await flush();
 
-    const cloudKeys = new Set(rows.map(rowKey));
-    const localOnly = cache.filter(r => !cloudKeys.has(rowKey(r)));
-    const merged = [...rows, ...localOnly].sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at)
-    );
+        const rows = (await rpc("sync_pull", { p_code: code })) || [];
+        degraded = false;
 
-    cache = merged;
-    writeLocal(cache);
+        const cloudKeys = new Set(rows.map(rowKey));
+        const localOnly = cache.filter(r => !cloudKeys.has(rowKey(r)));
+        const merged = [...rows, ...localOnly].sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at)
+        );
+        cache = merged;
+        writeLocal(cache);
 
-    // 本地独有的补推一次，让两端完全一致
-    if (localOnly.length) {
-      pending = localOnly.slice();
-      savePending();
-      await flush();
+        if (!localOnly.length) break;
+        // 还有本地独有记录没上云，放进队列再推一轮
+        pending = localOnly.slice();
+        savePending();
+      }
+    } catch {
+      degraded = true;
+    } finally {
+      syncing = false;
+      emit();
     }
   }
 
@@ -230,7 +236,7 @@ const Store = (() => {
 
     pending.push(item);
     savePending();
-    await flush();
+    sync(); // 后台串行同步，不阻塞练习
     return { ok: true, cloud: !degraded };
   }
 

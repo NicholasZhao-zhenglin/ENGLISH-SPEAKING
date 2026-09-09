@@ -296,6 +296,95 @@ async function saveAttempt(mode, idx, title, answer, score, detail) {
   if (currentMode === "stats") renderStats();
 }
 
+/* ==================== 语音输入 ==================== */
+
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function initMic(btnId, inputId) {
+  const btn = document.getElementById(btnId);
+  const input = document.getElementById(inputId);
+  if (!btn || !input) return;
+
+  if (!SpeechRecognitionAPI) {
+    btn.disabled = true;
+    btn.title = "当前浏览器不支持语音识别，请用 Chrome 或 Edge";
+    return;
+  }
+
+  let rec = null;
+  let listening = false;
+  let silenceTimer = null;
+
+  function reset() {
+    listening = false;
+    btn.classList.remove("mic-listening");
+    clearTimeout(silenceTimer);
+    silenceTimer = null;
+  }
+
+  btn.addEventListener("click", () => {
+    if (listening) {
+      try { rec && rec.stop(); } catch {}
+      reset();
+      return;
+    }
+
+    rec = new SpeechRecognitionAPI();
+    rec.lang = "en-US";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+
+    listening = true;
+    btn.classList.add("mic-listening");
+
+    let finalText = "";
+
+    // 超过 9 秒没有任何识别结果就自动停，避免一直挂着
+    silenceTimer = setTimeout(() => {
+      try { rec && rec.stop(); } catch {}
+      reset();
+    }, 9000);
+
+    rec.onresult = (e) => {
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        try { rec && rec.stop(); } catch {}
+        reset();
+      }, 9000);
+
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      input.value = (finalText + interim).trim();
+    };
+
+    rec.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        toast("麦克风权限被拒绝，请在浏览器地址栏允许使用麦克风", "bad");
+      } else if (e.error === "no-speech") {
+        toast("没听到声音，请靠近麦克风重试", "warn");
+      } else if (e.error === "audio-capture") {
+        toast("找不到麦克风设备", "bad");
+      } else if (e.error !== "aborted") {
+        toast("语音识别出错：" + e.error, "bad");
+      }
+      reset();
+    };
+
+    rec.onend = () => reset();
+
+    try { rec.start(); }
+    catch { reset(); toast("无法启动语音识别", "bad"); }
+  });
+}
+
+initMic("scenario-mic-btn", "scenario-input");
+initMic("open-mic-btn", "open-input");
+
 /* ==================== 状态显示 ==================== */
 
 function renderAuthStatus() {

@@ -43,8 +43,14 @@
         <h2 id="scenario-title" data-page-node-id="isHTB8H4vsQ4GRDNse6mU5">食堂点菜</h2>
         <p class="scenario-prompt" id="scenario-prompt" data-page-node-id="N0O6pVnKcXiLJxw8PVTIqs">你正在食堂点菜，怎么叫服务员，并告诉他你想要一杯热水？</p>
 
-        <textarea id="scenario-input" rows="4" placeholder="用英语输入你的回答…"></textarea>
-        <button id="scenario-check-btn" class="primary-btn" data-page-node-id="W024l4aimxepku3DdVOUvF">提交对比</button>
+        <textarea id="scenario-input" rows="4" placeholder="用英语输入你的回答，或点下方麦克风直接说…"></textarea>
+        <div class="input-actions" data-page-node-id="scenario-actions-node">
+          <button id="scenario-mic-btn" class="mic-btn" type="button" data-page-node-id="scenario-mic-node">
+            <span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>语音输入</span>
+            <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
+          </button>
+          <button id="scenario-check-btn" class="primary-btn" data-page-node-id="W024l4aimxepku3DdVOUvF">提交对比</button>
+        </div>
 
         <div id="scenario-result" class="result hidden" data-page-node-id="AqW8ESKViqbfQeteZaB6vm">
           <div class="result-header" data-page-node-id="u88OULUkzL9cOUUCtq7pCj">
@@ -73,8 +79,14 @@
 
         <div id="open-hints" class="hints" data-page-node-id="QEArYkW3lEemPFg3IHm0En"></div>
 
-        <textarea id="open-input" rows="5" placeholder="用英语自由输入你的回答…"></textarea>
-        <button id="open-check-btn" class="primary-btn" data-page-node-id="ZpxX1UucvoOxxsyDFHYsFX">提交检查</button>
+        <textarea id="open-input" rows="5" placeholder="用英语自由输入你的回答，或点下方麦克风直接说…"></textarea>
+        <div class="input-actions" data-page-node-id="open-actions-node">
+          <button id="open-mic-btn" class="mic-btn" type="button" data-page-node-id="open-mic-node">
+            <span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>语音输入</span>
+            <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
+          </button>
+          <button id="open-check-btn" class="primary-btn" data-page-node-id="ZpxX1UucvoOxxsyDFHYsFX">提交检查</button>
+        </div>
 
         <div id="open-result" class="result hidden" data-page-node-id="GYazKfXBIQPRnssWfQvtWb">
           <div class="result-header" data-page-node-id="nQ5yMCx8UXKJBJ0aRmNaOj">
