@@ -16,6 +16,8 @@ const Store = (() => {
   const LS_CODE = "esp_sync_code_v1";
   const LS_PENDING = "esp_pending_v1";
   const LS_CURRICULUM = "esp_curriculum_v1";
+  const LS_CURRICULUM_STARTED = "esp_curriculum_started_v1";
+  const LS_CURRICULUM_UNLOCKED = "esp_curriculum_unlocked_v1";
 
   // 去掉了容易看错的 I / L / O / 0 / 1
   const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -304,8 +306,56 @@ const Store = (() => {
   let curriculumDone = {};
   try { curriculumDone = JSON.parse(localStorage.getItem(LS_CURRICULUM) || "{}"); } catch { curriculumDone = {}; }
 
+  // ---- 每日解锁：阻止一口气刷完 ----
+  // curriculumStartedAt: 第一次启动课程的那天（开课日），按它 + N 天解锁第 N 个 unit。
+  // 之后每过一天（自然日）就多解锁 1 个。直到全部解锁完为止。
+  // curriculumUnlockedCount: 当前已解锁的数量（每次开页面 + 1，直到 18）。
+  let curriculumStartedAt = null;          // ISO 字符串
+  let curriculumUnlockedCount = 0;         // 数字
+  try {
+    curriculumStartedAt = localStorage.getItem(LS_CURRICULUM_STARTED);
+    curriculumUnlockedCount = parseInt(localStorage.getItem(LS_CURRICULUM_UNLOCKED) || "0", 10) || 0;
+  } catch {}
+
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function dateKeyOf(iso) {
+    const d = new Date(iso);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function daysBetween(a, b) { // a,b: "YYYY-MM-DD"
+    const da = new Date(a + "T00:00:00");
+    const db = new Date(b + "T00:00:00");
+    return Math.floor((db - da) / 86400000);
+  }
+
+  // 每次启动确保解锁到今天
+  function ensureTodayUnlocked(totalUnits) {
+    totalUnits = totalUnits || 18;
+    const today = todayKey();
+    if (!curriculumStartedAt) {
+      curriculumStartedAt = new Date().toISOString();
+      curriculumUnlockedCount = 1; // 开课日解锁第 1 个
+    } else {
+      const startedKey = dateKeyOf(curriculumStartedAt);
+      const diffDays = Math.max(0, daysBetween(startedKey, today));
+      // 应解锁数 = 1 + diffDays（开课日 1 个 + 之后每个自然日 +1）
+      curriculumUnlockedCount = Math.min(totalUnits, 1 + diffDays);
+    }
+    saveCurriculumUnlock();
+    return curriculumUnlockedCount;
+  }
+
   function saveCurriculum() {
     try { localStorage.setItem(LS_CURRICULUM, JSON.stringify(curriculumDone)); } catch {}
+  }
+  function saveCurriculumUnlock() {
+    try {
+      if (curriculumStartedAt) localStorage.setItem(LS_CURRICULUM_STARTED, curriculumStartedAt);
+      localStorage.setItem(LS_CURRICULUM_UNLOCKED, String(curriculumUnlockedCount));
+    } catch {}
   }
 
   function markCurriculumDone(key, quizScore) {
@@ -321,7 +371,14 @@ const Store = (() => {
 
   function resetCurriculum() {
     curriculumDone = {};
+    curriculumStartedAt = null;
+    curriculumUnlockedCount = 0;
     saveCurriculum();
+    saveCurriculumUnlock();
+    try {
+      localStorage.removeItem(LS_CURRICULUM_STARTED);
+      localStorage.removeItem(LS_CURRICULUM_UNLOCKED);
+    } catch {}
     emit();
   }
 
@@ -348,12 +405,14 @@ const Store = (() => {
   return {
     init, onAuthChange, bindCode, createAndBind, unbind, sync,
     save, history, historyFor, stats, exportJSON, generateCode, normalize, isValidCode,
-    markCurriculumDone, isCurriculumDone, resetCurriculum,
+    markCurriculumDone, isCurriculumDone, resetCurriculum, ensureTodayUnlocked,
     get mode() { return mode; },
     get code() { return code; },
     get degraded() { return degraded; },
     get pendingCount() { return pending.length; },
     get curriculumDone() { return curriculumDone; },
+    get curriculumUnlockedCount() { return curriculumUnlockedCount; },
+    get curriculumStartedAt() { return curriculumStartedAt; },
     displayCode, friendlyError,
     isCloud: () => mode === "cloud",
     isSignedIn: () => mode === "cloud" && !!code,

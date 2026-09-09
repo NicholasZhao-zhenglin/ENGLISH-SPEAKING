@@ -563,6 +563,38 @@ input:focus { border-color: var(--primary); }
   gap: 12px;
 }
 
+.learn-banner {
+  padding: 12px 16px;
+  margin: 0 0 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eff6ff, #ecfeff);
+  border: 1px solid #93c5fd;
+  font-size: 14px;
+  color: #1e293b;
+  line-height: 1.5;
+}
+.learn-banner .learn-banner-next { color: #2563eb; font-weight: 600; }
+.learn-banner .learn-banner-progress { color: #64748b; margin-left: 8px; font-size: 12px; }
+.learn-banner-done {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-color: #f59e0b;
+  font-weight: 600;
+}
+
+.danger-zone {
+  margin-top: 18px;
+  border: 1px dashed #fca5a5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff1f2;
+}
+.danger-zone summary { cursor: pointer; color: #b91c1c; font-weight: 600; }
+.danger-zone .danger-hint { color: #6b7280; font-size: 12px; margin: 6px 0 10px; }
+.danger-btn { border-color: #ef4444; color: #b91c1c; }
+.danger-btn:hover { background: #fee2e2; }
+
+.learn-jump option:disabled { color: #94a3b8; }
+
 .learn-progress {
   font-weight: 600;
   color: var(--primary);

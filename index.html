@@ -36,6 +36,7 @@
 
     <!-- 今日学习：5 句一组，每天学一个小版块 -->
     <section id="learn-mode" class="panel" data-page-node-id="learn-mode-node">
+      <div id="learn-today-banner" class="learn-banner"></div>
       <!-- 学习视图 -->
       <div id="learn-view" data-page-node-id="learn-view-node">
         <div class="learn-card" data-page-node-id="learn-card-node">
@@ -211,6 +212,12 @@
 
         <p class="result-label" data-page-node-id="NB5s9hKkba43igxptfwfEL">最近练习</p>
         <ul id="history-list" class="history" data-page-node-id="Q3r2DcE3CkoGQ9HcURvV44"></ul>
+
+        <details class="danger-zone" data-page-node-id="danger-zone-node">
+          <summary>⚠️ 重置课程进度（含解锁计数）</summary>
+          <p class="danger-hint">误点可恢复（取消），清空后从开课日重新按天解锁。</p>
+          <button id="reset-curriculum-btn" class="ghost-btn danger-btn" type="button">重置课程进度</button>
+        </details>
       </div>
     </section>
   </main>

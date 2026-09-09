@@ -487,29 +487,33 @@ const CURRICULUM = {
 
 /* ---------- 工具函数 ---------- */
 
-// 找当前应该学的 unit（按"上次进度"自动推进）
-function curriculumNextPending() {
-  const done = (typeof Store !== "undefined" && Store.curriculumDone) || {};
-  for (const cat of Object.keys(CURRICULUM)) {
-    const topics = CURRICULUM[cat].topics;
-    for (const t of topics) {
-      for (const u of t.units) {
-        const k = `${cat}.${t.id}.${u.id}`;
-        if (!done[k]) return { cat, topic: t, unit: u, key: k };
-      }
-    }
-  }
-  return null;
+// 判断某个 unit 是否已解锁（开课日 + 自然日偏移 <= 已解锁数量）
+function curriculumIsUnlocked(index, unlockedCount) {
+  if (typeof unlockedCount !== "number") unlockedCount = (typeof Store !== "undefined" && Store.curriculumUnlockedCount) || 0;
+  return index < unlockedCount;
 }
-
-// 列举全部 unit（按学习顺序）
+// 给所有 unit 加 idx + locked 标记
 function curriculumAllUnits() {
   const out = [];
+  let i = 0;
+  const unlockedCount = (typeof Store !== "undefined" && Store.curriculumUnlockedCount) || 0;
   for (const cat of Object.keys(CURRICULUM)) {
     const topics = CURRICULUM[cat].topics;
-    for (const t of topics) for (const u of t.units) out.push({ cat, topic: t, unit: u, key: `${cat}.${t.id}.${u.id}` });
+    for (const t of topics) for (const u of t.units) {
+      const key = `${cat}.${t.id}.${u.id}`;
+      out.push({ cat, topic: t, unit: u, key, idx: i, locked: !curriculumIsUnlocked(i, unlockedCount) });
+      i++;
+    }
   }
   return out;
+}
+
+// 当前应学的 unit：第一个已解锁且未完成
+function curriculumNextPending() {
+  const done = (typeof Store !== "undefined" && Store.curriculumDone) || {};
+  const all = curriculumAllUnits();
+  for (const x of all) if (!x.locked && !done[x.key]) return x;
+  return null;
 }
 
 // 统计进度

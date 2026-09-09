@@ -277,10 +277,46 @@ function renderLearnJump() {
     const opt = document.createElement("option");
     opt.value = x.key;
     const done = Store.isCurriculumDone(x.key);
-    opt.textContent = `${CURRICULUM[x.cat].label} · ${x.topic.title} · ${x.unit.title}${done ? " ✓" : ""}`;
+    const tag = done ? "✓ " : (x.locked ? "🔒 明日解锁 " : "🔓 ");
+    opt.textContent = `${tag}#${x.idx + 1} ${CURRICULUM[x.cat].label} · ${x.topic.title} · ${x.unit.title}`;
+    if (x.locked && !done) opt.disabled = true;
     sel.appendChild(opt);
   }
   if (currentLearnKey) sel.value = currentLearnKey;
+}
+
+function renderTodayBanner() {
+  const banner = $("learn-today-banner");
+  if (!banner) return;
+  const all = curriculumAllUnits();
+  const total = all.length;
+  const unlocked = Store.curriculumUnlockedCount || 0;
+  const next = curriculumNextPending();
+  const completed = Object.keys(Store.curriculumDone || {}).length;
+  if (!next) {
+    banner.textContent = `🎉 已学完 ${total} 个 unit（${completed}/${total}），解锁更多内容请重置课程。`;
+    banner.className = "learn-banner learn-banner-done";
+    return;
+  }
+  const unit = next.unit;
+  banner.innerHTML =
+    `📅 今日解锁 <b>第 ${unlocked} / ${total} unit</b>　
+     <span class="learn-banner-next">→ ${CURRICULUM[next.cat].label} · ${unit.title}</span>
+     <span class="learn-banner-progress">已完成 ${completed} · 已解锁 ${unlocked}</span>`;
+  banner.className = "learn-banner";
+}
+
+function curriculumRefreshDay() {
+  // 每次进入 Learn 视图都重新计算"今天该解锁几个"
+  Store.ensureTodayUnlocked(curriculumAllUnits().length);
+  renderTodayBanner();
+  renderLearnJump();
+}
+
+function ensureUnlockedOrWarn(unit) {
+  if (!unit || !unit.locked) return true;
+  toast("🔒 这个 unit 还没解锁，每天 0 点自动解锁 1 个（开课日解锁第 1 个）", "bad");
+  return false;
 }
 
 function renderLearnView() {
@@ -336,6 +372,7 @@ function startQuiz() {
   if (!currentLearnKey) { toast("暂无学习内容", "warn"); return; }
   const pick = learnFindUnitByKey(currentLearnKey);
   if (!pick || !pick.unit.quiz || !pick.unit.quiz.length) { toast("本版块无测试题", "warn"); return; }
+  if (!ensureUnlockedOrWarn(pick)) return;
   currentQuizData = pick;
   currentQuizAnswers = new Array(pick.unit.quiz.length).fill(null);
   $("learn-view").classList.add("hidden");
@@ -435,13 +472,18 @@ function backToLearn() {
 
 function jumpToNextUnit() {
   const all = curriculumAllUnits();
-  const idx = all.findIndex(x => x.key === currentLearnKey);
-  if (idx === -1 || idx + 1 >= all.length) {
-    toast("已经是最后一个版块啦 🎉", "good");
+  // 跳过已完成 + 跳到下一个未完成 + 未锁住的 unit
+  for (let i = all.findIndex(x => x.key === currentLearnKey) + 1; i < all.length; i++) {
+    if (all[i].locked) {
+      toast(`🔒 下一单元（${all[i].unit.title}）明天 0 点解锁`, "warn");
+      backToLearn();
+      return;
+    }
+    currentLearnKey = all[i].key;
     backToLearn();
     return;
   }
-  currentLearnKey = all[idx + 1].key;
+  toast("已经是最后一个版块啦 🎉", "good");
   backToLearn();
 }
 
@@ -1005,7 +1047,7 @@ document.querySelectorAll(".tab").forEach(btn => {
     $("cat-tabs").classList.toggle("hidden", currentMode !== "practice");
     if (currentMode === "stats") renderStats();
     if (currentMode === "chat") renderChatLog();
-    if (currentMode === "learn") renderLearnView();
+    if (currentMode === "learn") { curriculumRefreshDay(); renderLearnView(); }
     if (currentMode === "practice") renderScenario();
   });
 });
@@ -1135,6 +1177,16 @@ $("chat-role").addEventListener("change", () => {
   toast("已切换角色，对话已重置");
 });
 
+$("reset-curriculum-btn").addEventListener("click", () => {
+  if (!confirm("确定清空全部课程进度（包括解锁计数和测试分数）？清空后将从开课日重新按天解锁。" + (currentLearnKey ? "\n\n当前正在学习的 unit 也会重置。" : ""))) return;
+  Store.resetCurriculum();
+  currentLearnKey = null;
+  curriculumRefreshDay();
+  renderLearnView();
+  renderStats();
+  toast("已重置课程进度", "good");
+});
+
 /* ==================== 初始化 ==================== */
 
 Store.onAuthChange(() => {
@@ -1145,6 +1197,8 @@ Store.onAuthChange(() => {
 
 Store.init();
 switchCategory("life");
+// 解锁：今天该学几个（首次启动+之后每日 +1）
+Store.ensureTodayUnlocked(curriculumAllUnits().length);
 renderAuthStatus();
 renderSyncState();
 renderStats();
