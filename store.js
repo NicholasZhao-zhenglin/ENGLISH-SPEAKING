@@ -66,6 +66,22 @@ const Store = (() => {
 
   /* ---------- 登录 ---------- */
 
+  // Supabase 返回的是英文原始错误，翻成能看懂的中文，并给出可执行的下一步
+  function friendlyAuthError(msg) {
+    const m = String(msg || "");
+    if (/over_email_send_rate_limit|rate limit/i.test(m))
+      return "发送太频繁，已被限流（免费版默认 2 封/小时）。请 1 小时后再试，或按 SETUP.md 接 QQ 邮箱 SMTP 解除限制。";
+    if (/email_address_invalid/i.test(m))
+      return "这个邮箱地址被判定为无效（示例域名如 example.com 不行），换一个真实邮箱。";
+    if (/not authorized/i.test(m))
+      return "该邮箱不在白名单内。免费版默认发信只发给项目团队成员，需接自定义 SMTP。";
+    if (/otp_expired|token has expired/i.test(m))
+      return "验证码已过期，请点「换个邮箱」重新发送。";
+    if (/invalid.*token|token.*invalid/i.test(m))
+      return "验证码不正确，请检查后重试。";
+    return m || "发送失败，请稍后重试。";
+  }
+
   async function sendCode(email) {
     if (mode !== "cloud") return { ok: false, error: "未配置后端，当前为本机模式" };
     try {
@@ -73,10 +89,10 @@ const Store = (() => {
         email,
         options: { shouldCreateUser: true },
       });
-      if (error) return { ok: false, error: error.message };
+      if (error) return { ok: false, error: friendlyAuthError(error.message) };
       return { ok: true };
     } catch (e) {
-      return { ok: false, error: String(e && e.message || e) };
+      return { ok: false, error: friendlyAuthError(e && e.message) };
     }
   }
 
@@ -96,7 +112,7 @@ const Store = (() => {
       }
       if (error) lastErr = error.message;
     }
-    return { ok: false, error: lastErr };
+    return { ok: false, error: friendlyAuthError(lastErr) };
   }
 
   async function signOut() {
