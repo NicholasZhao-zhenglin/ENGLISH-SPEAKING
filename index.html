@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>English Speaking Practice</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <h1>英语口语练习</h1>
+      <p class="subtitle">选择一个模式开始练习</p>
+    </main>
+
+    <nav class="mode-tabs">
+      <button class="tab active" data-mode="scenario">情景模拟</button>
+      <button class="tab" data-mode="open">真实问答</button>
+    </nav>
+
+    <!-- 情景模拟 -->
+    <section id="scenario-mode" class="panel">
+      <div class="scenario-card">
+        <div class="scenario-meta">
+          <span id="scenario-index">情景 1 / 5</span>
+          <button id="next-scenario-btn" class="ghost-btn">下一个情景 →</button>
+        </div>
+        <h2 id="scenario-title">食堂点菜</h2>
+        <p class="scenario-prompt" id="scenario-prompt">你正在食堂点菜，怎么叫服务员，并告诉他你想要一杯热水？</p>
+
+        <textarea id="scenario-input" rows="4" placeholder="用英语输入你的回答…"></textarea>
+        <button id="scenario-check-btn" class="primary-btn">提交对比</button>
+
+        <div id="scenario-result" class="result hidden">
+          <div class="result-header">
+            <span id="scenario-verdict"></span>
+            <span id="scenario-score"></span>
+          </div>
+          <p class="result-label">标准答案：</p>
+          <p id="scenario-expected" class="answer-line"></p>
+          <p class="result-label">逐词对比：</p>
+          <p id="scenario-diff" class="diff-line"></p>
+          <p class="result-label">其他可接受说法：</p>
+          <ul id="scenario-alt"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 真实问答 -->
+    <section id="open-mode" class="panel hidden">
+      <div class="scenario-card">
+        <div class="scenario-meta">
+          <span id="open-index">问题 1 / 5</span>
+          <button id="next-open-btn" class="ghost-btn">下一个问题 →</button>
+        </div>
+        <h2 id="open-title">服务员询问</h2>
+        <p class="scenario-prompt" id="open-prompt">服务员问：“先生，您需要什么？”你可能会说什么？（自由回答，语法和逻辑正确即可）</p>
+
+        <textarea id="open-input" rows="5" placeholder="用英语自由输入你的回答…"></textarea>
+        <button id="open-check-btn" class="primary-btn">提交检查</button>
+
+        <div id="open-result" class="result hidden">
+          <div class="result-header">
+            <span id="open-verdict"></span>
+            <span id="open-score"></span>
+          </div>
+          <ul id="open-feedback"></ul>
+        </div>
+      </div>
+    </section>
+</main>
+  <script src="app.js"></script>
+</body>
+</html>
