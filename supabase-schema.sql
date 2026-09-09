@@ -41,7 +41,10 @@ create policy "attempts_owner_all"
   with check (auth.uid() = user_id);
 
 -- 4. 每题最佳成绩视图（历史面板 / 错题本用）
-create or replace view public.best_scores as
+-- security_invoker = on 让视图按调用者身份执行 RLS。
+-- 不加的话视图以属主（postgres）权限运行，会绕过 RLS 泄露所有用户的数据。
+create or replace view public.best_scores
+with (security_invoker = on) as
 select
   user_id,
   category,
@@ -52,8 +55,6 @@ select
   count(*)         as attempts
 from public.attempts
 group by user_id, category, mode, item_index;
-
--- 视图继承基表的 RLS，无需额外策略
 
 -- ============================================================
 -- 可选：验证码邮件发送频率上不去时的处理
