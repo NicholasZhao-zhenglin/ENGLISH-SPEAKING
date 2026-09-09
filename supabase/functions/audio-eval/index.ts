@@ -1,7 +1,12 @@
-// Supabase Edge Function：语音 AI 代理
+// Supabase Edge Function：语音转文字（STT）
 //
-// 职责：接收前端录好的音频 + 任务指令，转发给阿里云百炼的 qwen-omni-turbo
-//       （多模态模型，直接“听”音频），把评测/对话文本返回给前端。
+// 职责：接收前端录好的音频，转发给阿里云百炼的 qwen-omni-turbo
+//       （多模态模型，能直接"听"音频），把转写出的纯英文文本返回给前端。
+//
+// 后续的评测 / 对话生成不再在这里做——前端会拿转写文本再去调 gpt-proxy
+// Edge Function（gpt-5.5）。这样拆分的好处是：
+//   1. 评测 / 对话模型可以随时替换，不影响 STT
+//   2. 千问专门做音频理解，gpt-5.5 专门做文本推理，各司其职
 //
 // 为什么要有这一层：DashScope 的 API key 绝不能写进前端（前端在 GitHub Pages
 // 上是公开的），所以用 Edge Function 藏 key、做转发。key 存在环境变量
@@ -19,7 +24,13 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 const QWEN_ENDPOINT =
-  "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation";
+  "https://dashscope.aliycs.com/api/v1/services/aigc/multimodal-generation/generation";
+
+// 强制 STT 模式：只转写，不要任何回复/评测/思考
+const STT_SYSTEM =
+  "You are a speech-to-text transcriber. Listen to the user's audio and output ONLY the exact English words they spoke. " +
+  "Do NOT translate, do NOT evaluate, do NOT reply, do NOT add commentary. " +
+  "If you cannot hear anything clearly, output a single line: [inaudible].";
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), {
@@ -59,7 +70,7 @@ serve(async (req: Request) => {
     // 1. 防滥用：同步码必须是 8 位
     const syncCode = normalizeCode(body.sync_code);
     if (syncCode.length !== 8) {
-      return json({ error: "需要有效的同步码才能使用 AI 语音功能" }, 403);
+      return json({ error: "需要有效的同步码才能使用语音转文字功能" }, 403);
     }
 
     // 2. 音频必须存在
@@ -74,27 +85,11 @@ serve(async (req: Request) => {
       return json({ error: "服务端未配置 DASHSCOPE_API_KEY，见 SETUP.md" }, 500);
     }
 
-    const task = body.task === "chat" ? "chat" : "eval";
-    const systemPrompt = String(body.system_prompt || "").trim();
-    const userText = String(body.user_text || "").trim();
-
-    // 4. 组装 messages
-    const messages: any[] = [];
-    if (systemPrompt) {
-      messages.push({ role: "system", content: [{ text: systemPrompt }] });
-    }
-    // 对话历史（文本），本轮之前的轮次
-    if (task === "chat" && Array.isArray(body.history)) {
-      for (const h of body.history) {
-        if (!h || !h.role || !h.text) continue;
-        const role = h.role === "assistant" ? "assistant" : "user";
-        messages.push({ role, content: [{ text: String(h.text).slice(0, 4000) }] });
-      }
-    }
-    // 本轮：音频 + 可选文本
-    const content: any[] = [{ audio: "data:;base64," + audioBase64 }];
-    if (userText) content.push({ text: userText });
-    messages.push({ role: "user", content });
+    // 4. 组装 messages：只有 system + 音频，不再接 user_text / history / 自己拼的 system_prompt
+    const messages: any[] = [
+      { role: "system", content: [{ text: STT_SYSTEM }] },
+      { role: "user", content: [{ audio: "data:;base64," + audioBase64 }] },
+    ];
 
     // 5. 调 qwen-omni-turbo
     const upstream = await fetch(QWEN_ENDPOINT, {
@@ -123,7 +118,7 @@ serve(async (req: Request) => {
       return json({ error: "模型未返回有效文本", raw: JSON.stringify(upstreamData).slice(0, 300) }, 502);
     }
 
-    return json({ text }, 200);
+    return json({ transcript: text }, 200);
   } catch (e: any) {
     return json({ error: String(e?.message || e) }, 500);
   }

@@ -439,35 +439,69 @@ const AI = (() => {
     });
   }
 
-  async function call(task, audioBase64, opts) {
+  function endpointUrl(name) {
+    const cfg = window.BACKEND_CONFIG || {};
+    if (!cfg.SUPABASE_URL) return "";
+    return `${cfg.SUPABASE_URL.replace(/\/+$/, "")}/functions/v1/${name}`;
+  }
+
+  function authHeaders() {
+    const cfg = window.BACKEND_CONFIG || {};
+    return {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + (cfg.SUPABASE_ANON_KEY || ""),
+    };
+  }
+
+  // 第 1 步：把音频转成文字。千问 qwen-omni 直连大模型，专门负责"听懂"用户说了啥。
+  async function transcribe(audioBase64) {
     const cfg = window.BACKEND_CONFIG || {};
     if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return { ok: false, error: "未配置后端" };
     if (!Store.code) return { ok: false, error: "请先绑定同步码（点右上角「同步码」）" };
     try {
-      const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/audio-eval`, {
+      const res = await fetch(endpointUrl("audio-eval"), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY },
+        headers: authHeaders(),
+        body: JSON.stringify({ sync_code: Store.code, audio_base64: audioBase64 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}` };
+      return { ok: true, transcript: String(data.transcript || "").trim() };
+    } catch (e) {
+      return { ok: false, error: "转写失败：" + (e && e.message || e) };
+    }
+  }
+
+  // 第 2 步：拿转写出的文字去做 AI 评测 / 对话。统一交给中转站 gpt-5.5。
+  async function complete(task, text, opts) {
+    const cfg = window.BACKEND_CONFIG || {};
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return { ok: false, error: "未配置后端" };
+    if (!Store.code) return { ok: false, error: "请先绑定同步码（点右上角「同步码」）" };
+    try {
+      const res = await fetch(endpointUrl("gpt-proxy"), {
+        method: "POST",
+        headers: authHeaders(),
         body: JSON.stringify({
           sync_code: Store.code,
-          task,
-          audio_base64: audioBase64,
-          system_prompt: opts.systemPrompt || "",
-          user_text: opts.userText || "",
-          history: opts.history || [],
+          task,                           // "eval" | "chat"
+          text,                           // 来自 STT 的转写文本
+          context: (opts && opts.context) || "",   // 可选附加上下文（场景描述等）
+          system_prompt: (opts && opts.systemPrompt) || "",
+          history: (opts && opts.history) || [],
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}` };
       return { ok: true, text: data.text };
     } catch (e) {
-      return { ok: false, error: "调用失败：" + (e && e.message || e) };
+      return { ok: false, error: "AI 调用失败：" + (e && e.message || e) };
     }
   }
 
-  return { supported, start, stop, isRecording, blobToBase64, call };
+  return { supported, start, stop, isRecording, blobToBase64, transcribe, complete };
 })();
 
-const EVAL_SYSTEM = "你是专业的英语口语教练。请先逐字转写用户说的英语，然后从语法、用词、流利度、自然度几个维度评测，指出错误并给出更地道的说法。用中文回复，结构清晰，先给结论再给细节。";
+const EVAL_SYSTEM = "你是专业的英语口语教练。用户提供的内容包含两段：上文是练习场景说明，下文是用户说的英文（已经被语音转文字）。请只针对用户说的英文做评测，从语法、用词、流利度、自然度几个维度展开，指出错误并给出更地道的说法。用中文回复，结构清晰，先给结论再给细节。";
 
 function showAiResult(resultEl, text, isError) {
   resultEl.classList.remove("hidden");
@@ -476,20 +510,41 @@ function showAiResult(resultEl, text, isError) {
   resultEl.querySelector(".ai-text").textContent = text;
 }
 
-// 通用 AI 评测：点按钮开始录音，再点一次停止并发送
-async function aiEval(btn, resultEl, buildPrompt) {
+// 通用 AI 评测：两段式 —— 千问 STT 转写 → gpt-5.5 评测
+async function aiEval(btn, resultEl, inputEl, buildPrompt) {
   if (!AI.supported()) { toast("当前浏览器不支持录音，请用 Chrome / Edge / Safari", "bad"); return; }
 
   if (AI.isRecording()) {
     btn.disabled = true;
     try {
       const blob = await AI.stop();
-      btn.textContent = "AI 评测中…";
+      btn.textContent = "转写中…";
       const b64 = await AI.blobToBase64(blob);
+
+      // 第 1 步：千问把语音转成文字
+      const tr = await AI.transcribe(b64);
+      if (!tr.ok) { showAiResult(resultEl, "🎙️ 语音转写失败：" + tr.error, true); return; }
+      const transcript = tr.transcript;
+      if (!transcript || /^[\[（(]?(inaudible|未听清|听不清)[\]）)]?$/i.test(transcript)) {
+        showAiResult(resultEl, "🎙️ 没听清你说了啥，再试一次？靠近麦克风说慢一点。", true);
+        return;
+      }
+
+      // 转写文本顺手填到输入框（只在为空时），用户能编辑后再评测
+      if (inputEl && !inputEl.value.trim()) inputEl.value = transcript;
+
+      // 先把转写结果展示出来，让用户看到自己说了啥
+      btn.textContent = "AI 评测中…";
+      showAiResult(resultEl, `🎙️ 你说的是：\n${transcript}\n\n—— AI 评测中 ——`, false);
+
+      // 第 2 步：把转写文本交给 gpt-5.5 做评测
       const { systemPrompt, userText } = buildPrompt();
-      const res = await AI.call("eval", b64, { systemPrompt, userText });
-      if (!res.ok) showAiResult(resultEl, res.error, true);
-      else showAiResult(resultEl, res.text, false);
+      const cr = await AI.complete("eval", transcript, { systemPrompt, context: userText });
+      if (!cr.ok) {
+        showAiResult(resultEl, `🎙️ 你说的是：\n${transcript}\n\n❌ AI 评测失败：${cr.error}`, true);
+        return;
+      }
+      showAiResult(resultEl, `🎙️ 你说的是：\n${transcript}\n\n${cr.text}`, false);
     } catch (e) {
       showAiResult(resultEl, "录音失败：" + (e && e.message || e), true);
     } finally {
@@ -511,14 +566,12 @@ async function aiEval(btn, resultEl, buildPrompt) {
 /* ---------- AI 对话 ---------- */
 
 const CHAT_ROLES = {
-  friend: { label: "自由对话", system: "你是一位英语口语对话伙伴，用英语和用户进行自然、友好的日常对话。" },
-  waiter: { label: "餐厅服务员", system: "你扮演一位餐厅服务员，用户是来吃饭的顾客。用英语接待、点单、回应需求。" },
-  interviewer: { label: "面试官", system: "你扮演一位面试官，正在面试用户。用英语提出面试问题，根据用户回答自然追问。" },
-  shop: { label: "商店店员", system: "你扮演一位商店店员，用户是来买东西的顾客。用英语接待、介绍商品、回答询问。" },
-  colleague: { label: "同事", system: "你扮演用户的一位同事，用英语进行工作场景的对话，讨论工作、项目和日常。" },
+  friend: { label: "自由对话", system: "你是一位英语口语对话伙伴，用英语和用户进行自然、友好的日常对话。保持简短：每轮 1-3 句话，自然口语化，不要长篇大论。" },
+  waiter: { label: "餐厅服务员", system: "你扮演一位餐厅服务员，用户是来吃饭的顾客。用英语接待、点单、回应需求。每轮 1-3 句话。" },
+  interviewer: { label: "面试官", system: "你扮演一位面试官，正在面试用户。用英语提出面试问题，根据用户回答自然追问。每轮 1-3 句话。" },
+  shop: { label: "商店店员", system: "你扮演一位商店店员，用户是来买东西的顾客。用英语接待、介绍商品、回答询问。每轮 1-3 句话。" },
+  colleague: { label: "同事", system: "你扮演用户的一位同事，用英语进行工作场景的对话，讨论工作、项目和日常。每轮 1-3 句话。" },
 };
-
-const CHAT_FORMAT = "\n\n你的回复必须严格按以下两行格式输出，不要输出其他任何内容：\nTRANSCRIPT: 用户刚才说的英语原文转写\nREPLY: 你的英语对话回复（1-3 句话，自然）";
 
 let chatHistory = []; // [{role:"user"|"assistant", text}]
 
@@ -544,26 +597,28 @@ async function chatTurn() {
     btn.disabled = true;
     try {
       const blob = await AI.stop();
-      btn.textContent = "AI 思考中…";
+      btn.textContent = "转写中…";
       const b64 = await AI.blobToBase64(blob);
+
+      // 第 1 步：千问把语音转成文字
+      const tr = await AI.transcribe(b64);
+      if (!tr.ok) { toast("转写失败：" + tr.error, "bad"); return; }
+      const transcript = tr.transcript || "（未听清）";
+
+      // 第 2 步：把转写文本交给 gpt-5.5 做对话回复
+      btn.textContent = "AI 思考中…";
       const role = CHAT_ROLES[$("chat-role").value] || CHAT_ROLES.friend;
-      const res = await AI.call("chat", b64, {
-        systemPrompt: role.system + CHAT_FORMAT,
+      const cr = await AI.complete("chat", transcript, {
+        systemPrompt: role.system,
         history: chatHistory.slice(-10),
       });
-      if (!res.ok) {
-        toast(res.error, "bad");
-      } else {
-        // 解析 TRANSCRIPT / REPLY
-        const t = res.text || "";
-        const tm = t.match(/TRANSCRIPT:?\s*([\s\S]*?)(?=REPLY:?|$)/i);
-        const rm = t.match(/REPLY:?\s*([\s\S]*)/i);
-        const transcript = (tm ? tm[1] : "").trim() || "（未听清）";
-        const reply = (rm ? rm[1] : t).trim();
-        chatHistory.push({ role: "user", text: transcript });
-        chatHistory.push({ role: "assistant", text: reply || "…" });
-        renderChatLog();
-      }
+      if (!cr.ok) { toast(cr.error, "bad"); return; }
+
+      // gpt-5.5 只输出对话回复本身，不需要再解析 TRANSCRIPT/REPLY
+      const reply = String(cr.text || "").trim() || "…";
+      chatHistory.push({ role: "user", text: transcript });
+      chatHistory.push({ role: "assistant", text: reply });
+      renderChatLog();
     } catch (e) {
       toast("录音或识别失败：" + (e && e.message || e), "bad");
     } finally {
@@ -823,7 +878,7 @@ $("export-btn").addEventListener("click", () => {
 /* ---------- AI 语音事件绑定 ---------- */
 
 $("scenario-ai-btn").addEventListener("click", () => {
-  aiEval($("scenario-ai-btn"), $("scenario-ai-result"), () => {
+  aiEval($("scenario-ai-btn"), $("scenario-ai-result"), $("scenario-input"), () => {
     const s = getScenarios()[scenarioIdx];
     return {
       systemPrompt: EVAL_SYSTEM,
@@ -833,7 +888,7 @@ $("scenario-ai-btn").addEventListener("click", () => {
 });
 
 $("open-ai-btn").addEventListener("click", () => {
-  aiEval($("open-ai-btn"), $("open-ai-result"), () => {
+  aiEval($("open-ai-btn"), $("open-ai-result"), $("open-input"), () => {
     const q = getOpens()[openIdx];
     return {
       systemPrompt: EVAL_SYSTEM,
