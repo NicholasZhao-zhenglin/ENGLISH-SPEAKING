@@ -1,73 +1,130 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<html lang="zh-CN" data-page-node-id="lkeoGPTjlIfLtKkLNqGB6n">
+<head data-page-node-id="SyiQxbrnGzKnjqIvcfGTWl">
+  <meta charset="UTF-8" data-page-node-id="UWKsKVnSNVMsRWIJad8X1U" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="lvyBptJjbBugG7hZSpXoTr" />
   <title>English Speaking Practice</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css" data-page-node-id="iu2gop1xjCS8wC9oce245Z" />
 </head>
-<body>
-  <main class="app">
-    <header class="app-header">
-      <h1>英语口语练习</h1>
-      <p class="subtitle">选择一个模式开始练习</p>
+<body data-page-node-id="fEXSAipwMQXaYtkQ7AmaKA">
+  <main class="app" data-page-node-id="L2jNN0dvekXgDkmVWIF8DA">
+    <header class="app-header" data-page-node-id="v6GdGe6mz0hQbFI789IjE9">
+      <h1 data-page-node-id="ji1nK9z2Ee2hHl7YvhKc9D">英语口语练习</h1>
+      <p class="subtitle" data-page-node-id="Hzkz4m4aOp5MOdGoXskpDI">选择一个模式开始练习</p>
     </header>
 
-    <nav class="mode-tabs">
-      <button class="tab active" data-mode="scenario">情景模拟</button>
-      <button class="tab" data-mode="open">真实问答</button>
+    <!-- 登录状态条 -->
+    <div class="auth-bar" data-page-node-id="nQkA7fkf4lYEAi9CJTXkMh">
+      <span id="auth-status" data-page-node-id="DmGBxvdHfmhFYHvq1cyNKR">未登录 · 数据仅存本机</span>
+      <span class="auth-actions" data-page-node-id="WIr3T345YZ08vznc1pfXG8">
+        <button id="export-btn" class="ghost-btn" data-page-node-id="FHQgRscSQF3gl1QwNBwoTF">导出</button>
+        <button id="auth-btn" class="ghost-btn" data-page-node-id="qtTsc7GCORlIgWBsrBow6t">登录 / 同步</button>
+      </span>
+    </div>
+
+    <nav class="mode-tabs" data-page-node-id="u5ZiP9ru0rGR7Cykeg70sh">
+      <button class="tab active" data-mode="scenario" data-page-node-id="gO9OYB912OeVgg58l74ZBh">情景模拟</button>
+      <button class="tab" data-mode="open" data-page-node-id="yJAhzOPkPjo0Ju3pOFYTBM">真实问答</button>
+      <button class="tab" data-mode="stats" data-page-node-id="fNahTd8dCHI2cir1lUYEAq">我的记录</button>
+    </nav>
+
+    <nav class="cat-tabs" id="cat-tabs" data-page-node-id="XeYNC7LhC1qg18VF8BweV4">
+      <button class="cat-tab active" data-cat="life" data-page-node-id="9CBldSkhySkEF1GvfJR3Qe">生活</button>
+      <button class="cat-tab" data-cat="work" data-page-node-id="5q83M2204jGw0IAUzFev9v">工作</button>
     </nav>
 
     <!-- 情景模拟 -->
-    <section id="scenario-mode" class="panel">
-      <div class="scenario-card">
-        <div class="scenario-meta">
-          <span id="scenario-index">情景 1 / 5</span>
-          <button id="next-scenario-btn" class="ghost-btn">下一个情景 →</button>
+    <section id="scenario-mode" class="panel" data-page-node-id="2q9JelcQ5bXiWFo8tEagxl">
+      <div class="scenario-card" data-page-node-id="Ey05rTmySGGj0ks1y14Uya">
+        <div class="scenario-meta" data-page-node-id="vETh4LwVdF151ei8JJL4cl">
+          <span id="scenario-index" data-page-node-id="9HENBsuFk4lGqKhE9VDHK7">情景 1 / 5</span>
+          <button id="next-scenario-btn" class="ghost-btn" data-page-node-id="jV06ut1nhVAaiUMtHXU2on">下一个情景 →</button>
         </div>
-        <h2 id="scenario-title">食堂点菜</h2>
-        <p class="scenario-prompt" id="scenario-prompt">你正在食堂点菜，怎么叫服务员，并告诉他你想要一杯热水？</p>
+        <h2 id="scenario-title" data-page-node-id="isHTB8H4vsQ4GRDNse6mU5">食堂点菜</h2>
+        <p class="scenario-prompt" id="scenario-prompt" data-page-node-id="N0O6pVnKcXiLJxw8PVTIqs">你正在食堂点菜，怎么叫服务员，并告诉他你想要一杯热水？</p>
 
         <textarea id="scenario-input" rows="4" placeholder="用英语输入你的回答…"></textarea>
-        <button id="scenario-check-btn" class="primary-btn">提交对比</button>
+        <button id="scenario-check-btn" class="primary-btn" data-page-node-id="W024l4aimxepku3DdVOUvF">提交对比</button>
 
-        <div id="scenario-result" class="result hidden">
-          <div class="result-header">
-            <span id="scenario-verdict"></span>
-            <span id="scenario-score"></span>
+        <div id="scenario-result" class="result hidden" data-page-node-id="AqW8ESKViqbfQeteZaB6vm">
+          <div class="result-header" data-page-node-id="u88OULUkzL9cOUUCtq7pCj">
+            <span id="scenario-verdict" data-page-node-id="q29XAZHyHq39r3NzsEbrdX"></span>
+            <span id="scenario-score" data-page-node-id="rUFHZlsCbMNnQjIYGobvUv"></span>
           </div>
-          <p class="result-label">标准答案：</p>
-          <p id="scenario-expected" class="answer-line"></p>
-          <p class="result-label">逐词对比：</p>
-          <p id="scenario-diff" class="diff-line"></p>
-          <p class="result-label">其他可接受说法：</p>
-          <ul id="scenario-alt"></ul>
+          <p class="result-label" data-page-node-id="Y13HhqP7C8HP4BZfr1hoVn">标准答案：</p>
+          <p id="scenario-expected" class="answer-line" data-page-node-id="yksrjQiH02XpXvNotwnMRd"></p>
+          <p class="result-label" data-page-node-id="9nqKJiSWYhCTB422InA7dv">逐词对比：</p>
+          <p id="scenario-diff" class="diff-line" data-page-node-id="0ZHAathlWuFoSKsvOHT3hm"></p>
+          <p class="result-label" data-page-node-id="ysqMz3EAqVv8pMfF9KG2Pj">其他可接受说法：</p>
+          <ul id="scenario-alt" data-page-node-id="zwmgNEp5AYqt5iEHHlXaC2"></ul>
         </div>
       </div>
     </section>
 
     <!-- 真实问答 -->
-    <section id="open-mode" class="panel hidden">
-      <div class="scenario-card">
-        <div class="scenario-meta">
-          <span id="open-index">问题 1 / 5</span>
-          <button id="next-open-btn" class="ghost-btn">下一个问题 →</button>
+    <section id="open-mode" class="panel hidden" data-page-node-id="Pa1Vw8YgzQsIt2oo6MaII7">
+      <div class="scenario-card" data-page-node-id="vXYSds6H4SNPNQ1OZE88i7">
+        <div class="scenario-meta" data-page-node-id="5q8opI28lGW4QFp9dADJd6">
+          <span id="open-index" data-page-node-id="54hB7YImAGve6mjThxwNxr">问题 1 / 5</span>
+          <button id="next-open-btn" class="ghost-btn" data-page-node-id="lWEMkISLwSLpqoVR9CMELa">下一个问题 →</button>
         </div>
-        <h2 id="open-title">服务员询问</h2>
-        <p class="scenario-prompt" id="open-prompt">服务员问：“先生，您需要什么？”你可能会说什么？（自由回答，语法和逻辑正确即可）</p>
+        <h2 id="open-title" data-page-node-id="YaouVD3V2LvJYtLiKdeNww">服务员询问</h2>
+        <p class="scenario-prompt" id="open-prompt" data-page-node-id="nfUHHbrP7B8F92N5cMxOT7">服务员问：“先生，您需要什么？”你可能会说什么？（自由回答）</p>
+
+        <div id="open-hints" class="hints" data-page-node-id="QEArYkW3lEemPFg3IHm0En"></div>
 
         <textarea id="open-input" rows="5" placeholder="用英语自由输入你的回答…"></textarea>
-        <button id="open-check-btn" class="primary-btn">提交检查</button>
+        <button id="open-check-btn" class="primary-btn" data-page-node-id="ZpxX1UucvoOxxsyDFHYsFX">提交检查</button>
 
-        <div id="open-result" class="result hidden">
-          <div class="result-header">
-            <span id="open-verdict"></span>
-            <span id="open-score"></span>
+        <div id="open-result" class="result hidden" data-page-node-id="GYazKfXBIQPRnssWfQvtWb">
+          <div class="result-header" data-page-node-id="nQ5yMCx8UXKJBJ0aRmNaOj">
+            <span id="open-verdict" data-page-node-id="TgDIStK7peJH2FVZLVBmw3"></span>
+            <span id="open-score" data-page-node-id="8dHGTnVq6LhVLH7lArierT"></span>
           </div>
-          <ul id="open-feedback"></ul>
+          <ul id="open-feedback" data-page-node-id="GHvXWbd7AWjtVXK4vPhd1W"></ul>
         </div>
       </div>
     </section>
+
+    <!-- 我的记录 -->
+    <section id="stats-mode" class="panel hidden" data-page-node-id="wuBnqF8z6FTNNDPmNp60J4">
+      <div class="scenario-card" data-page-node-id="UhNPVNcxmMuq6lzQu2FXx1">
+        <div class="scenario-meta" data-page-node-id="tVSkiJq9f43Nzgo6IRAViB">
+          <span id="sync-state" data-page-node-id="wBTvda733jo8qUB8F8MHiZ"></span>
+        </div>
+
+        <div id="stat-grid" class="stat-grid" data-page-node-id="epnlSgKZB78WGVY4lFzZRV"></div>
+
+        <p class="result-label" data-page-node-id="NB5s9hKkba43igxptfwfEL">最近练习</p>
+        <ul id="history-list" class="history" data-page-node-id="Q3r2DcE3CkoGQ9HcURvV44"></ul>
+      </div>
+    </section>
+  </main>
+
+  <!-- 登录弹窗 -->
+  <div id="auth-modal" class="modal hidden" data-page-node-id="FjqC4YUl8jQ8cNoRvqFFzX">
+    <div class="modal-card" data-page-node-id="5IJgq2EYNHuX15rLX1NDhL">
+      <h3 id="auth-title" data-page-node-id="0l8hjgTdXSsjOqe4aQeWml">登录以启用多端同步</h3>
+
+      <div id="auth-step-email" data-page-node-id="rip97RqsAoT5WY8tgBntax">
+        <input id="auth-email" type="email" placeholder="你的邮箱，如 you@qq.com" autocomplete="email" data-page-node-id="14aAHHEfvuyOHPyytpSRFa" />
+        <button id="auth-send-btn" class="primary-btn" data-page-node-id="uSEvBuKij7FWCM6GGNdlFp">发送验证码</button>
+      </div>
+
+      <div id="auth-step-code" class="hidden" data-page-node-id="fHuzJTn0pYG3upw99I0gp8">
+        <input id="auth-code" type="text" inputmode="numeric" maxlength="8" placeholder="邮件里的验证码" data-page-node-id="9olvn4XiPH1uuAtzF6C7pQ" />
+        <button id="auth-verify-btn" class="primary-btn" data-page-node-id="ATbmXIttDaVc8VbjtZhxVC">验证并登录</button>
+        <button id="auth-back-btn" class="ghost-btn" data-page-node-id="T2MXWFoJbDnDRFeMykgQ5f">换个邮箱</button>
+      </div>
+
+      <p id="auth-msg" class="auth-msg" data-page-node-id="ckMcBTUCLpjv92OkFnfHzv"></p>
+      <button id="auth-close-btn" class="ghost-btn modal-close" data-page-node-id="4LzTJuCBs2iwxLZ2dQv4o9">关闭</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="store.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
