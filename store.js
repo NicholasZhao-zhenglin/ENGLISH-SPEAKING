@@ -1,20 +1,32 @@
-/* ==================== 存储适配层 ====================
+/* ==================== 存储适配层（同步码模式） ====================
  *
- * 对外暴露统一接口，内部两种实现：
- *   cloud —— Supabase（配置了 URL + anon key 且 SDK 加载成功）
- *   local —— 浏览器 localStorage（未配置、或云端不可用时自动降级）
+ * 身份方式：8 位同步码（如 K7M2-9XQ4）。换设备输入同一个码，记录就合并。
+ * 不需要注册、不需要邮箱、不依赖任何第三方 SDK —— 直接 fetch 后端 RPC。
  *
- * 上层业务代码只调 Store.xxx()，不关心底下是哪一种。
- * ==================================================== */
+ * 两种运行模式：
+ *   cloud —— 填了 config.js 的 URL + key，数据经后端同步，多端互通
+ *   local —— 没填或后端不可达，退化为纯 localStorage，功能不受影响
+ *
+ * 写策略：本地永远先落盘（保证不丢），再异步推云端；推失败进 pending 队列，
+ *         下次操作时自动补推。练习不会因为网络问题中断。
+ * ================================================================= */
 
 const Store = (() => {
   const LS_DATA = "esp_attempts_v1";
+  const LS_CODE = "esp_sync_code_v1";
+  const LS_PENDING = "esp_pending_v1";
+
+  // 去掉了容易看错的 I / L / O / 0 / 1
+  const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const CODE_LEN = 8;
 
   let mode = "local";      // "cloud" | "local"
-  let sb = null;           // supabase client
-  let user = null;         // { id, email }
-  let cache = [];          // 内存中的练习记录，按时间倒序
-  let degraded = false;    // 云端初始化成功但后续请求失败 → 降级标记
+  let base = "";           // 后端 REST 地址
+  let key = "";            // anon key
+  let code = null;         // 规范化后的同步码，如 K7M29XQ4
+  let cache = [];          // 全部练习记录，按时间倒序
+  let pending = [];        // 尚未成功推上云端的记录
+  let degraded = false;    // 云端请求失败过 → 界面提示
   const listeners = [];
 
   /* ---------- 本地读写 ---------- */
@@ -26,117 +38,180 @@ const Store = (() => {
   function writeLocal(list) {
     try { localStorage.setItem(LS_DATA, JSON.stringify(list)); } catch {}
   }
+  function savePending() {
+    try { localStorage.setItem(LS_PENDING, JSON.stringify(pending)); } catch {}
+  }
+
+  /* ---------- 同步码 ---------- */
+
+  function normalize(raw) {
+    return String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  }
+
+  // 拒绝采样：248 = 8 * 31，超出就丢弃重抽，避免取模造成概率偏差
+  function generateCode() {
+    const out = [];
+    const buf = new Uint8Array(1);
+    while (out.length < CODE_LEN) {
+      crypto.getRandomValues(buf);
+      if (buf[0] >= 248) continue;
+      out.push(ALPHABET[buf[0] % ALPHABET.length]);
+    }
+    const s = out.join("");
+    return s.slice(0, 4) + "-" + s.slice(4);
+  }
+
+  function isValidCode(raw) {
+    return normalize(raw).length === CODE_LEN;
+  }
+
+  /* ---------- 后端请求 ---------- */
+
+  async function rpc(name, body) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 10000);
+    try {
+      const res = await fetch(`${base}/rest/v1/rpc/${name}`, {
+        method: "POST",
+        headers: {
+          apikey: key,
+          Authorization: "Bearer " + key,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: ctl.signal,
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${text.slice(0, 160)}`);
+      // sync_push 成功但无内容时返回空串，不能当 JSON 解析
+      return text ? JSON.parse(text) : null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   /* ---------- 初始化 ---------- */
 
   function init() {
     const cfg = window.BACKEND_CONFIG || {};
-    const ok = cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase;
-    if (!ok) { mode = "local"; user = localUser(); cache = readLocal(); return mode; }
+    cache = readLocal();
+    try { pending = JSON.parse(localStorage.getItem(LS_PENDING) || "[]"); } catch { pending = []; }
 
-    try {
-      sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
-      });
+    if (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) {
       mode = "cloud";
-      sb.auth.getSession().then(({ data }) => {
-        if (data && data.session) {
-          user = { id: data.session.user.id, email: data.session.user.email };
-          pull();
-        }
-        emit();
-      });
-      sb.auth.onAuthStateChange((_e, s) => {
-        user = s ? { id: s.user.id, email: s.user.email } : null;
-        if (user) pull();
-        emit();
-      });
-    } catch {
-      mode = "local";
-      user = localUser();
-      cache = readLocal();
+      base = String(cfg.SUPABASE_URL).replace(/\/+$/, "");
+      key = cfg.SUPABASE_ANON_KEY;
+      const saved = normalize(localStorage.getItem(LS_CODE) || "");
+      if (saved.length === CODE_LEN) {
+        code = saved;
+        // 后台静默同步，失败也不打断页面
+        sync().catch(() => {});
+      }
     }
+    emit();
     return mode;
   }
 
-  function localUser() { return { id: "local", email: "本机" }; }
-
-  function emit() { listeners.forEach(fn => { try { fn(user); } catch {} }); }
+  function emit() { listeners.forEach(fn => { try { fn(code); } catch {} }); }
   function onAuthChange(fn) { listeners.push(fn); }
 
-  /* ---------- 登录 ---------- */
+  /* ---------- 绑定 / 解绑 ---------- */
 
-  // Supabase 返回的是英文原始错误，翻成能看懂的中文，并给出可执行的下一步
-  function friendlyAuthError(msg) {
-    const m = String(msg || "");
-    if (/over_email_send_rate_limit|rate limit/i.test(m))
-      return "发送太频繁，已被限流（免费版默认 2 封/小时）。请 1 小时后再试，或按 SETUP.md 接 QQ 邮箱 SMTP 解除限制。";
-    if (/email_address_invalid/i.test(m))
-      return "这个邮箱地址被判定为无效（示例域名如 example.com 不行），换一个真实邮箱。";
-    if (/not authorized/i.test(m))
-      return "该邮箱不在白名单内。免费版默认发信只发给项目团队成员，需接自定义 SMTP。";
-    if (/otp_expired|token has expired/i.test(m))
-      return "验证码已过期，请点「换个邮箱」重新发送。";
-    if (/invalid.*token|token.*invalid/i.test(m))
-      return "验证码不正确，请检查后重试。";
-    return m || "发送失败，请稍后重试。";
-  }
-
-  async function sendCode(email) {
+  async function bindCode(raw) {
+    const c = normalize(raw);
+    if (c.length !== CODE_LEN) return { ok: false, error: `同步码应为 8 位字母或数字，当前是 ${c.length} 位` };
     if (mode !== "cloud") return { ok: false, error: "未配置后端，当前为本机模式" };
-    try {
-      const { error } = await sb.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true },
-      });
-      if (error) return { ok: false, error: friendlyAuthError(error.message) };
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: friendlyAuthError(e && e.message) };
-    }
+
+    code = c;
+    localStorage.setItem(LS_CODE, c);
+    emit(); // 界面立刻变成已绑定；同步在后台跑，结果通过 emit 反映到同步状态徽章
+
+    sync()
+      .then(emit)
+      .catch(() => { degraded = true; emit(); });
+
+    return { ok: true, error: "" };
   }
 
-  async function verifyCode(email, code) {
-    if (mode !== "cloud") return { ok: false, error: "未配置后端，当前为本机模式" };
-    const token = String(code).trim();
-    // 不同版本 / 邮件模板下 type 可能是 email 或 magiclink，两种都试
-    const types = ["email", "magiclink"];
-    let lastErr = "验证码不正确或已过期";
-    for (const type of types) {
-      const { data, error } = await sb.auth.verifyOtp({ email, token, type });
-      if (!error && data && data.user) {
-        user = { id: data.user.id, email: data.user.email || email };
-        await pull();
-        emit();
-        return { ok: true };
-      }
-      if (error) lastErr = error.message;
-    }
-    return { ok: false, error: friendlyAuthError(lastErr) };
+  // 生成本机专属的码并立即绑定（首次使用走这条）
+  async function createAndBind() {
+    if (mode !== "cloud") return { ok: false, code: "", error: "未配置后端，当前为本机模式" };
+    const c = generateCode();
+    const r = await bindCode(c);
+    return { ...r, code: c };
   }
 
-  async function signOut() {
-    if (mode === "cloud") { try { await sb.auth.signOut(); } catch {} }
-    user = mode === "cloud" ? null : localUser();
-    cache = mode === "cloud" ? [] : readLocal();
+  function unbind() {
+    code = null;
+    pending = [];
+    localStorage.removeItem(LS_CODE);
+    localStorage.removeItem(LS_PENDING);
+    degraded = false;
     emit();
+  }
+
+  /* ---------- 同步 ---------- */
+
+  function toRow(r) {
+    return {
+      category: r.category,
+      mode: r.mode,
+      item_index: r.item_index,
+      item_title: r.item_title,
+      answer: r.answer,
+      score: r.score,
+      detail: r.detail || null,
+      created_at: r.created_at,
+    };
+  }
+
+  // 去重键：同题目、同答案、同分数、同一秒内 → 视为同一条
+  function rowKey(r) {
+    const t = Math.floor(new Date(r.created_at).getTime() / 1000);
+    return [r.category, r.mode, r.item_index, r.answer, r.score, t].join("|");
+  }
+
+  async function flush() {
+    if (mode !== "cloud" || !code || !pending.length) return;
+    const batch = pending.slice(0, 500);
+    try {
+      await rpc("sync_push", { p_code: code, p_rows: batch.map(toRow) });
+      pending = pending.slice(batch.length);
+      savePending();
+      degraded = false;
+    } catch {
+      degraded = true;
+    }
+  }
+
+  // 推本地未同步的 → 拉云端全量 → 合并去重 → 落本地
+  async function sync() {
+    if (mode !== "cloud" || !code) return;
+    await flush();
+    const rows = (await rpc("sync_pull", { p_code: code })) || [];
+    degraded = false;
+
+    const cloudKeys = new Set(rows.map(rowKey));
+    const localOnly = cache.filter(r => !cloudKeys.has(rowKey(r)));
+    const merged = [...rows, ...localOnly].sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    );
+
+    cache = merged;
+    writeLocal(cache);
+
+    // 本地独有的补推一次，让两端完全一致
+    if (localOnly.length) {
+      pending = localOnly.slice();
+      savePending();
+      await flush();
+    }
   }
 
   /* ---------- 数据 ---------- */
 
-  async function pull() {
-    if (mode !== "cloud" || !user) return;
-    const { data, error } = await sb
-      .from("attempts")
-      .select("id, category, mode, item_index, item_title, answer, score, detail, created_at")
-      .order("created_at", { ascending: false })
-      .limit(2000);
-    if (error) { degraded = true; return; }
-    cache = data || [];
-  }
-
   async function save(rec) {
-    const row = {
+    const item = {
       category: rec.category,
       mode: rec.mode,
       item_index: rec.item_index,
@@ -144,31 +219,26 @@ const Store = (() => {
       answer: rec.answer,
       score: rec.score,
       detail: rec.detail || null,
+      id: "local-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+      created_at: new Date().toISOString(),
     };
 
-    if (mode === "cloud" && user) {
-      const { data, error } = await sb
-        .from("attempts")
-        .insert({ ...row, user_id: user.id })
-        .select()
-        .single();
-      if (error) {
-        // 写入失败不能让练习中断：落本地，下次可导出
-        degraded = true;
-        cache.unshift({ ...row, id: "tmp-" + Date.now(), created_at: new Date().toISOString() });
-        return { ok: false, error: error.message };
-      }
-      cache.unshift(data);
-      return { ok: true };
-    }
-
-    const item = { ...row, id: "local-" + Date.now(), created_at: new Date().toISOString() };
     cache.unshift(item);
     writeLocal(cache);
-    return { ok: true };
+
+    if (mode !== "cloud" || !code) return { ok: true, cloud: false };
+
+    pending.push(item);
+    savePending();
+    await flush();
+    return { ok: true, cloud: !degraded };
   }
 
   function history() { return cache; }
+
+  function historyFor(category) {
+    return cache.filter(r => r.category === category);
+  }
 
   /* ---------- 统计 ---------- */
 
@@ -182,7 +252,6 @@ const Store = (() => {
     const total = list.length;
     const avg = total ? Math.round(list.reduce((s, r) => s + (r.score || 0), 0) / total) : 0;
 
-    // 每题最高分
     const best = new Map();
     for (const r of list) {
       const k = `${r.category}|${r.mode}|${r.item_index}`;
@@ -194,7 +263,6 @@ const Store = (() => {
       else if (v < 60) weak++;
     }
 
-    // 连续打卡天数
     const days = new Set(list.map(r => dayKey(r.created_at)));
     let streak = 0;
     const cursor = new Date();
@@ -222,13 +290,35 @@ const Store = (() => {
     URL.revokeObjectURL(a.href);
   }
 
+  /* ---------- 错误提示 ---------- */
+
+  function friendlyError(e) {
+    const m = String((e && e.message) || e || "");
+    if (/abort|timeout/i.test(m)) return "请求超时，检查网络后重试";
+    if (/Failed to fetch|NetworkError/i.test(m)) return "连不上后端，检查网络或后端地址是否填对";
+    if (/HTTP 401|HTTP 403/i.test(m)) return "密钥无效或没有权限，检查 config.js 里的 anon key";
+    if (/HTTP 404/i.test(m)) return "后端函数不存在，同步用的 SQL 还没执行（见 SETUP.md）";
+    if (/HTTP 429/i.test(m)) return "请求太频繁，稍后再试";
+    if (/HTTP 5\d\d/i.test(m)) return "后端暂时不可用，稍后再试";
+    return m.slice(0, 120) || "同步失败";
+  }
+
+  /* ---------- 对外 ---------- */
+
+  function displayCode() {
+    if (!code) return "";
+    return code.length === CODE_LEN ? code.slice(0, 4) + "-" + code.slice(4) : code;
+  }
+
   return {
-    init, onAuthChange, sendCode, verifyCode, signOut,
-    save, history, stats, exportJSON, pull,
+    init, onAuthChange, bindCode, createAndBind, unbind, sync,
+    save, history, historyFor, stats, exportJSON, generateCode, normalize, isValidCode,
     get mode() { return mode; },
-    get user() { return user; },
+    get code() { return code; },
     get degraded() { return degraded; },
+    get pendingCount() { return pending.length; },
+    displayCode, friendlyError,
     isCloud: () => mode === "cloud",
-    isSignedIn: () => mode === "cloud" && !!user,
+    isSignedIn: () => mode === "cloud" && !!code,
   };
 })();

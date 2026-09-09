@@ -260,7 +260,6 @@ function checkOpen() {
 /* ==================== 保存与提示 ==================== */
 
 let currentMode = "scenario";
-let otpTimer = null;
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -289,8 +288,10 @@ async function saveAttempt(mode, idx, title, answer, score, detail) {
     score,
     detail,
   });
-  if (res.ok) toast(Store.isCloud() ? "已同步到云端" : "已记录到本机");
-  else toast("保存失败：" + res.error, "bad");
+  if (!res.ok) toast("保存失败：" + res.error, "bad");
+  else if (!Store.isCloud()) toast("已记录到本机");
+  else if (!Store.isSignedIn()) toast("已记录到本机（未绑定同步码）");
+  else toast(res.cloud ? "已同步到云端" : "已存本机，联网后自动补传");
   renderSyncState();
   if (currentMode === "stats") renderStats();
 }
@@ -305,12 +306,12 @@ function renderAuthStatus() {
     btn.textContent = "怎么开启同步？";
     btn.dataset.action = "help";
   } else if (Store.isSignedIn()) {
-    el.textContent = `已登录 · ${Store.user.email}`;
-    btn.textContent = "退出";
-    btn.dataset.action = "logout";
+    el.textContent = `已绑定 · ${Store.displayCode()}`;
+    btn.textContent = "同步设置";
+    btn.dataset.action = "manage";
   } else {
-    el.textContent = "云端已连接 · 未登录";
-    btn.textContent = "登录 / 同步";
+    el.textContent = "云端已连接 · 未绑定同步码";
+    btn.textContent = "开启同步";
     btn.dataset.action = "login";
   }
 }
@@ -321,10 +322,13 @@ function renderSyncState() {
     el.textContent = "本机模式 · 数据只存在这台浏览器，换设备或清缓存会丢";
     el.className = "sync-badge sync-local";
   } else if (Store.isSignedIn()) {
-    el.textContent = Store.degraded ? "云端写入失败，已回落到本机" : `已同步 · ${Store.user.email}`;
-    el.className = "sync-badge " + (Store.degraded ? "sync-warn" : "sync-ok");
+    const pending = Store.pendingCount;
+    el.textContent = pending
+      ? `有 ${pending} 条待同步 · 已存在本机，联网后自动补传`
+      : Store.degraded ? "云端暂时连不上，已存在本机" : `已同步 · 同步码 ${Store.displayCode()}`;
+    el.className = "sync-badge " + (pending || Store.degraded ? "sync-warn" : "sync-ok");
   } else {
-    el.textContent = "云端已连接 · 登录后可在多设备间同步";
+    el.textContent = "云端已连接 · 绑定同步码后可在多设备间同步";
     el.className = "sync-badge sync-warn";
   }
 }
@@ -357,26 +361,68 @@ function renderStats() {
 
 /* ==================== 登录 ==================== */
 
-function openAuth() {
+function openAuth(tab) {
   $("auth-modal").classList.remove("hidden");
-  $("auth-step-email").classList.remove("hidden");
-  $("auth-step-code").classList.add("hidden");
   $("auth-msg").textContent = "";
-  $("auth-email").focus();
+  switchAuthTab(tab || "mine");
+  refreshAuthView();
 }
+
 function closeAuth() { $("auth-modal").classList.add("hidden"); }
 
-function startCooldown() {
-  const btn = $("auth-send-btn");
-  let left = window.OTP_COOLDOWN_SEC || 60;
-  btn.disabled = true;
-  clearInterval(otpTimer);
-  otpTimer = setInterval(() => {
-    left--;
-    btn.textContent = left > 0 ? `重新发送（${left}s）` : "发送验证码";
-    if (left <= 0) { clearInterval(otpTimer); btn.disabled = false; }
-  }, 1000);
-  btn.textContent = `重新发送（${left}s）`;
+// 弹窗内容随绑定状态变化：未绑定时主按钮是「生成」，绑定后变成「复制」
+function refreshAuthView() {
+  const bound = Store.isSignedIn();
+  renderMyCode(bound ? Store.displayCode() : "--------");
+  $("auth-copy-btn").textContent = bound ? "复制同步码" : "生成我的同步码";
+  $("auth-gen-btn").classList.toggle("hidden", !bound);
+  $("auth-unbind-btn").classList.toggle("hidden", !bound);
+}
+
+function switchAuthTab(tab) {
+  $("auth-tab-mine").classList.toggle("active", tab === "mine");
+  $("auth-tab-bind").classList.toggle("active", tab === "bind");
+  $("auth-step-mine").classList.toggle("hidden", tab !== "mine");
+  $("auth-step-bind").classList.toggle("hidden", tab !== "bind");
+  $("auth-msg").textContent = "";
+  if (tab === "bind") $("bind-code").focus();
+}
+
+function renderMyCode(text) {
+  $("my-code").textContent = text;
+  $("auth-unbind-btn").classList.toggle("hidden", !Store.isSignedIn());
+}
+
+function setAuthMsg(text, kind) {
+  $("auth-msg").textContent = text;
+  $("auth-msg").className = "auth-msg" + (kind ? " " + kind : "");
+}
+
+async function authPrimaryAction() {
+  if (!Store.isSignedIn()) {
+    setAuthMsg("生成中…");
+    const r = await Store.createAndBind();
+    if (!r.ok) { setAuthMsg(r.error, "err"); return; }
+    refreshAuthView();
+    renderAuthStatus();
+    renderSyncState();
+    setAuthMsg(r.error || "已生成。在另一台设备打开本页，切到「输入已有的码」填进去", r.error ? "" : "ok");
+    return;
+  }
+
+  const code = Store.displayCode();
+  try {
+    await navigator.clipboard.writeText(code);
+    toast("同步码已复制：" + code);
+  } catch {
+    // 非 HTTPS 或旧浏览器下 clipboard API 不可用，退回选中文本让用户手动复制
+    const range = document.createRange();
+    range.selectNodeContents($("my-code"));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    toast("已选中，按 Ctrl/Cmd + C 复制");
+  }
 }
 
 /* ==================== 事件绑定 ==================== */
@@ -408,7 +454,7 @@ document.querySelectorAll(".cat-tab").forEach(btn => {
 
 $("auth-btn").addEventListener("click", () => {
   const action = $("auth-btn").dataset.action;
-  if (action === "logout") { Store.signOut(); toast("已退出登录"); return; }
+  if (action === "manage") { openAuth("mine"); return; }
   if (action === "help") {
     alert(
       "开启多端同步只需两步：\n\n" +
@@ -416,52 +462,70 @@ $("auth-btn").addEventListener("click", () => {
       "   填入 SUPABASE_URL 和 SUPABASE_ANON_KEY\n" +
       "   （Supabase 控制台 → Project Settings → API）\n\n" +
       "2. 在 Supabase 控制台 SQL Editor 里执行\n" +
-      "   项目根目录的 supabase-schema.sql\n\n" +
-      "改完推到 gh-pages 分支即可生效。"
+      "   项目根目录的 supabase-sync-schema.sql\n\n" +
+      "改完推到 gh-pages 分支即可生效。\n" +
+      "详细步骤见同目录的 SETUP.md。"
     );
     return;
   }
-  openAuth();
+  openAuth("mine");
 });
 
 $("auth-close-btn").addEventListener("click", closeAuth);
 $("auth-modal").addEventListener("click", e => { if (e.target === $("auth-modal")) closeAuth(); });
 
-$("auth-send-btn").addEventListener("click", async () => {
-  const email = $("auth-email").value.trim();
-  const msg = $("auth-msg");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.textContent = "邮箱格式不对"; msg.className = "auth-msg err"; return; }
-  msg.textContent = "发送中…"; msg.className = "auth-msg";
-  const res = await Store.sendCode(email);
-  if (!res.ok) { msg.textContent = res.error; msg.className = "auth-msg err"; return; }
-  msg.textContent = "验证码已发送，查收邮箱（含垃圾箱）";
-  msg.className = "auth-msg ok";
-  $("auth-step-email").classList.add("hidden");
-  $("auth-step-code").classList.remove("hidden");
-  $("auth-code").focus();
-  startCooldown();
+$("auth-tab-mine").addEventListener("click", () => { switchAuthTab("mine"); refreshAuthView(); });
+$("auth-tab-bind").addEventListener("click", () => switchAuthTab("bind"));
+
+$("auth-copy-btn").addEventListener("click", authPrimaryAction);
+
+$("auth-gen-btn").addEventListener("click", async () => {
+  if (!confirm("换一个新的同步码？\n\n旧码会失效，已经绑定旧码的其他设备需要重新绑定。\n本机数据不受影响，会归到新码下。")) return;
+  setAuthMsg("生成中…");
+  const r = await Store.createAndBind();
+  if (!r.ok) { setAuthMsg(r.error, "err"); return; }
+  refreshAuthView();
+  renderAuthStatus();
+  renderSyncState();
+  setAuthMsg(r.error || "已换成新码，其他设备记得重新绑定", r.error ? "" : "ok");
 });
 
-$("auth-verify-btn").addEventListener("click", async () => {
-  const email = $("auth-email").value.trim();
-  const code = $("auth-code").value.trim();
-  const msg = $("auth-msg");
-  if (!code) { msg.textContent = "请输入验证码"; msg.className = "auth-msg err"; return; }
-  msg.textContent = "验证中…"; msg.className = "auth-msg";
-  const res = await Store.verifyCode(email, code);
-  if (!res.ok) { msg.textContent = res.error; msg.className = "auth-msg err"; return; }
-  msg.textContent = "";
-  closeAuth();
-  toast("登录成功，数据已跨设备打通");
+$("auth-unbind-btn").addEventListener("click", () => {
+  if (!confirm("解绑后这台设备不再同步云端，已存在的本地记录会保留。\n确定解绑？")) return;
+  Store.unbind();
+  refreshAuthView();
+  renderAuthStatus();
+  renderSyncState();
+  setAuthMsg("已解绑，当前为本机模式");
+  toast("已解绑同步");
 });
 
-$("auth-back-btn").addEventListener("click", () => {
-  $("auth-step-code").classList.add("hidden");
-  $("auth-step-email").classList.remove("hidden");
-  $("auth-msg").textContent = "";
+$("auth-bind-btn").addEventListener("click", async () => {
+  const raw = $("bind-code").value.trim();
+  if (!Store.isValidCode(raw)) {
+    setAuthMsg("同步码是 8 位字母或数字（如 K7M2-9XQ4），检查一下有没有输错", "err");
+    return;
+  }
+  setAuthMsg("绑定并同步中…");
+  const res = await Store.bindCode(raw);
+  if (!res.ok) { setAuthMsg(res.error, "err"); return; }
+  refreshAuthView();
+  renderAuthStatus();
+  renderSyncState();
+  if (currentMode === "stats") renderStats();
+  $("bind-code").value = "";
+  if (res.error) { setAuthMsg(res.error, "err"); return; }
+  setAuthMsg("绑定成功，多端数据已合并", "ok");
+  toast("同步已开启");
 });
 
-$("auth-code").addEventListener("keydown", e => { if (e.key === "Enter") $("auth-verify-btn").click(); });
+$("bind-code").addEventListener("keydown", e => { if (e.key === "Enter") $("auth-bind-btn").click(); });
+
+// 输入时自动转大写并补上中间的连字符，减少手输错误
+$("bind-code").addEventListener("input", e => {
+  const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  e.target.value = raw.length > 4 ? raw.slice(0, 4) + "-" + raw.slice(4) : raw;
+});
 
 $("export-btn").addEventListener("click", () => {
   Store.exportJSON();

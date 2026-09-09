@@ -15,10 +15,10 @@
 
     <!-- 登录状态条 -->
     <div class="auth-bar" data-page-node-id="nQkA7fkf4lYEAi9CJTXkMh">
-      <span id="auth-status" data-page-node-id="DmGBxvdHfmhFYHvq1cyNKR">未登录 · 数据仅存本机</span>
+      <span id="auth-status" data-page-node-id="DmGBxvdHfmhFYHvq1cyNKR">未绑定 · 数据仅存本机</span>
       <span class="auth-actions" data-page-node-id="WIr3T345YZ08vznc1pfXG8">
         <button id="export-btn" class="ghost-btn" data-page-node-id="FHQgRscSQF3gl1QwNBwoTF">导出</button>
-        <button id="auth-btn" class="ghost-btn" data-page-node-id="qtTsc7GCORlIgWBsrBow6t">登录 / 同步</button>
+        <button id="auth-btn" class="ghost-btn" data-page-node-id="qtTsc7GCORlIgWBsrBow6t">同步码</button>
       </span>
     </div>
 
@@ -104,17 +104,28 @@
   <!-- 登录弹窗 -->
   <div id="auth-modal" class="modal hidden" data-page-node-id="FjqC4YUl8jQ8cNoRvqFFzX">
     <div class="modal-card" data-page-node-id="5IJgq2EYNHuX15rLX1NDhL">
-      <h3 id="auth-title" data-page-node-id="0l8hjgTdXSsjOqe4aQeWml">登录以启用多端同步</h3>
+      <h3 id="auth-title" data-page-node-id="0l8hjgTdXSsjOqe4aQeWml">多端同步</h3>
 
-      <div id="auth-step-email" data-page-node-id="rip97RqsAoT5WY8tgBntax">
-        <input id="auth-email" type="email" placeholder="你的邮箱，如 you@qq.com" autocomplete="email" data-page-node-id="14aAHHEfvuyOHPyytpSRFa" />
-        <button id="auth-send-btn" class="primary-btn" data-page-node-id="uSEvBuKij7FWCM6GGNdlFp">发送验证码</button>
+      <div class="auth-tabs" data-page-node-id="auth-tabs-node">
+        <button id="auth-tab-mine" class="auth-tab active" data-page-node-id="auth-tab-mine-node">我的同步码</button>
+        <button id="auth-tab-bind" class="auth-tab" data-page-node-id="auth-tab-bind-node">输入已有的码</button>
       </div>
 
-      <div id="auth-step-code" class="hidden" data-page-node-id="fHuzJTn0pYG3upw99I0gp8">
-        <input id="auth-code" type="text" inputmode="numeric" maxlength="8" placeholder="邮件里的验证码" data-page-node-id="9olvn4XiPH1uuAtzF6C7pQ" />
-        <button id="auth-verify-btn" class="primary-btn" data-page-node-id="ATbmXIttDaVc8VbjtZhxVC">验证并登录</button>
-        <button id="auth-back-btn" class="ghost-btn" data-page-node-id="T2MXWFoJbDnDRFeMykgQ5f">换个邮箱</button>
+      <div id="auth-step-mine" data-page-node-id="rip97RqsAoT5WY8tgBntax">
+        <p class="auth-hint" data-page-node-id="hint-mine-node">把这串码记下来。在另一台设备打开本页，切到「输入已有的码」填进去，两边的记录会自动合并。</p>
+        <div id="my-code" class="code-display" data-page-node-id="my-code-node">---- - ----</div>
+        <div class="auth-row" data-page-node-id="auth-row-node">
+          <button id="auth-copy-btn" class="primary-btn" data-page-node-id="auth-copy-node">复制同步码</button>
+          <button id="auth-gen-btn" class="ghost-btn" data-page-node-id="auth-gen-node">换一个</button>
+        </div>
+        <p class="auth-warn" data-page-node-id="warn-node">同步码就是钥匙，拿到它的人能看你的练习记录，别发到公开的地方。</p>
+        <button id="auth-unbind-btn" class="ghost-btn danger-btn" data-page-node-id="auth-unbind-node">解绑这台设备</button>
+      </div>
+
+      <div id="auth-step-bind" class="hidden" data-page-node-id="fHuzJTn0pYG3upw99I0gp8">
+        <p class="auth-hint" data-page-node-id="hint-bind-node">在已绑定的设备上打开「我的同步码」，把那串码填到这里。</p>
+        <input id="bind-code" type="text" maxlength="9" placeholder="如 K7M2-9XQ4" autocomplete="off" spellcheck="false" data-page-node-id="bind-code-node" />
+        <button id="auth-bind-btn" class="primary-btn" data-page-node-id="auth-bind-node">绑定并同步</button>
       </div>
 
       <p id="auth-msg" class="auth-msg" data-page-node-id="ckMcBTUCLpjv92OkFnfHzv"></p>
@@ -122,7 +133,6 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js"></script>
   <script src="config.js"></script>
   <script src="store.js"></script>
   <script src="app.js"></script>
