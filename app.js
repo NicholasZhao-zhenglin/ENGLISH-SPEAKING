@@ -262,6 +262,11 @@ function checkOpen() {
 let currentLearnKey = null;       // unitKey，如 "life.dining.ordering"
 let currentQuizData = null;       // 当前 unit 对象
 let currentQuizAnswers = [];      // 每题用户选的索引
+let transferDrafts = [];          // 当前 unit 的 3 个 transfer 题 [{scenario_zh, hint_zh, sample}]
+let transferRecordings = [];      // 3 个转写结果（字符串数组，未录为空）
+let transferResults = [];         // 3 个 AI 评分 {score, ok}（未评测为 null）
+let anchorRecording = null;       // anchor 句的跟读转写
+let activeTransferIdx = -1;       // 当前正在录音的 transfer 卡（-1=无/anchor）
 
 function learnFindUnitByKey(key) {
   if (!key) return null;
@@ -330,9 +335,15 @@ function renderLearnView() {
     $("learn-icon").textContent = "🎉";
     $("learn-topic-title").textContent = "已学完全部内容";
     $("learn-unit-title").textContent = "恭喜！";
-    $("learn-sentences").innerHTML = "<li class='learn-empty'>所有版块都已学完。可以在右上角跳选器重学任意版块，或去「自由练习」巩固。</li>";
+    $("learn-anchor-en").textContent = "";
+    $("learn-anchor-zh").textContent = "";
+    $("learn-anchor-tip").textContent = "";
+    $("learn-anchor-transcript").textContent = "";
+    $("learn-transfers-list").innerHTML = "<li class='learn-empty'>所有版块都已学完。可以在右上角跳选器重学任意版块，或去「自由练习」巩固。</li>";
     $("learn-summary-list").innerHTML = "";
-    $("learn-quiz-btn").disabled = true;
+    $("learn-submit-transfers-btn").classList.add("hidden");
+    $("learn-quiz-btn").classList.add("hidden");
+    $("learn-transfer-result").classList.add("hidden");
     $("learn-progress").textContent = "进度 100%";
     return;
   }
@@ -341,16 +352,20 @@ function renderLearnView() {
   $("learn-topic-title").textContent = `${CURRICULUM[pick.cat].label} · ${pick.topic.title}`;
   $("learn-unit-title").textContent = pick.unit.title;
 
-  // 5 句列表
-  const ol = $("learn-sentences");
-  ol.innerHTML = "";
-  for (const s of pick.unit.sentences) {
-    const li = document.createElement("li");
-    li.innerHTML = `<span class="sentence-en">${escapeHtml(s[0])}</span>
-                    <span class="sentence-zh">${escapeHtml(s[1])}</span>
-                    <span class="sentence-tip">💡 ${escapeHtml(s[2])}</span>`;
-    ol.appendChild(li);
-  }
+  // 核心 anchor 句
+  const a = pick.unit.anchor;
+  $("learn-anchor-en").textContent = a[0];
+  $("learn-anchor-zh").textContent = a[1];
+  $("learn-anchor-tip").textContent = `💡 ${a[2]}`;
+  $("learn-anchor-transcript").textContent = "";
+
+  // 3 个 transfer 题（必须语音）
+  transferDrafts = pick.unit.transfers.map(t => ({ scenario_zh: t.scenario_zh, hint_zh: t.hint_zh, sample: t.sample, transcript: "" }));
+  transferRecordings = new Array(pick.unit.transfers.length).fill(null);
+  transferResults = new Array(pick.unit.transfers.length).fill(null);
+  anchorRecording = null;
+  $("learn-transfer-result").classList.add("hidden");
+  renderTransferList();
 
   // 要点
   const sl = $("learn-summary-list");
@@ -364,8 +379,70 @@ function renderLearnView() {
   // 进度
   const stats = curriculumStats(Store.curriculumDone);
   $("learn-progress").textContent = `进度 ${stats.completed}/${stats.total}`;
-  $("learn-quiz-btn").disabled = false;
+  // 单元是否已通过 transfer + quiz：决定是否直接显示"开始测试"
+  const done = Store.curriculumDone[pick.key];
+  const transferDone = transferDrafts.every((_, i) => !!transferRecordings[i]);
+  if (transferDone || (done && done.transferScore !== undefined)) {
+    $("learn-submit-transfers-btn").classList.add("hidden");
+    $("learn-quiz-btn").classList.remove("hidden");
+  } else {
+    $("learn-submit-transfers-btn").classList.remove("hidden");
+    $("learn-submit-transfers-btn").disabled = true;
+    $("learn-quiz-btn").classList.add("hidden");
+  }
   renderLearnJump();
+}
+
+function renderTransferList() {
+  const ul = $("learn-transfers-list");
+  if (!ul) return;
+  ul.innerHTML = "";
+  for (let i = 0; i < transferDrafts.length; i++) {
+    const t = transferDrafts[i];
+    const li = document.createElement("li");
+    li.className = "transfer-card" + (transferRecordings[i] ? " done" : "");
+    li.dataset.idx = String(i);
+    li.innerHTML = `
+      <div class="transfer-head">
+        <span class="transfer-num">${i + 1}</span>
+        <span class="transfer-scenario">${escapeHtml(t.scenario_zh)}</span>
+      </div>
+      <details class="transfer-hint">
+        <summary>💡 句式提示</summary>
+        <p>${escapeHtml(t.hint_zh)}</p>
+      </details>
+      <div class="transfer-rec">
+        <button class="mic-btn transfer-mic-btn" data-idx="${i}" type="button">
+          <span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>按住录音</span>
+          <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
+        </button>
+        <span class="transfer-transcript" data-idx="${i}">${transferRecordings[i] ? escapeHtml(transferRecordings[i]) : '<i>（未录音）</i>'}</span>
+        ${transferResults[i] !== null ? `<span class="transfer-score ${transferResults[i].ok ? "ok" : "bad"}">${transferResults[i].score}分</span>` : ""}
+      </div>
+      <details class="transfer-sample">
+        <summary>参考说法（卡住了再看）</summary>
+        <p><b>${escapeHtml(t.sample[0])}</b></p>
+        <p>${escapeHtml(t.sample[1])}</p>
+        <p class="muted">${escapeHtml(t.sample[2])}</p>
+      </details>
+    `;
+    ul.appendChild(li);
+  }
+  // 绑定录音按钮
+  ul.querySelectorAll(".transfer-mic-btn").forEach(btn => {
+    btn.addEventListener("click", () => onTransferMicClick(parseInt(btn.dataset.idx, 10), btn));
+  });
+  updateSubmitTransfersEnabled();
+}
+
+function updateSubmitTransfersEnabled() {
+  const btn = $("learn-submit-transfers-btn");
+  if (!btn) return;
+  const ready = transferDrafts.length > 0 && transferDrafts.every((_, i) => !!transferRecordings[i]);
+  btn.disabled = !ready;
+  btn.textContent = ready
+    ? "📤 提交 3 题评测（" + transferDrafts.filter((_, i) => transferRecordings[i]).length + "/3）"
+    : "📤 先录满 3 题才能提交";
 }
 
 function startQuiz() {
@@ -373,6 +450,13 @@ function startQuiz() {
   const pick = learnFindUnitByKey(currentLearnKey);
   if (!pick || !pick.unit.quiz || !pick.unit.quiz.length) { toast("本版块无测试题", "warn"); return; }
   if (!ensureUnlockedOrWarn(pick)) return;
+  // 要求先完成 transfer：3 题都录过
+  const allRecorded = transferDrafts.length > 0 && transferDrafts.every((_, i) => !!transferRecordings[i]);
+  const alreadyDone = !!(Store.curriculumDone[pick.key] && Store.curriculumDone[pick.key].quizScore !== undefined);
+  if (!allRecorded && !alreadyDone) {
+    toast("请先完成 3 个 transfer 语音题（必须用麦克风）", "warn");
+    return;
+  }
   currentQuizData = pick;
   currentQuizAnswers = new Array(pick.unit.quiz.length).fill(null);
   $("learn-view").classList.add("hidden");
@@ -410,6 +494,177 @@ function renderQuizQuestion() {
   area.appendChild(ul);
   updateQuizButtons();
 }
+
+/* ==================== Transfer（举一反三）录音 ==================== */
+
+async function onTransferMicClick(idx, btn) {
+  if (!AI.supported()) { toast("当前浏览器不支持录音，请用 Chrome / Edge / Safari", "bad"); return; }
+  if (!ensureUnlockedOrWarn(learnFindUnitByKey(currentLearnKey))) return;
+  if (AI.isRecording() && activeTransferIdx === idx) {
+    // 停止
+    btn.disabled = true;
+    try {
+      const blob = await AI.stop();
+      const b64 = await AI.blobToBase64(blob);
+      btn.classList.remove("recording");
+      btn.textContent = "识别中…";
+      const r = await AI.transcribe(b64);
+      if (!r.ok) {
+        toast("识别失败：" + r.error, "bad");
+        btn.textContent = "🎤 重试录音";
+        return;
+      }
+      transferRecordings[idx] = r.text || "";
+      // 更新 UI
+      const span = document.querySelector(`.transfer-transcript[data-idx="${idx}"]`);
+      if (span) span.innerHTML = escapeHtml(transferRecordings[idx]) || "<i>（未识别）</i>";
+      document.querySelector(`.transfer-card[data-idx="${idx}"]`)?.classList.add("done");
+      btn.innerHTML = '<span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>重录</span><span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>';
+      updateSubmitTransfersEnabled();
+    } catch (e) {
+      toast("录音失败：" + (e && e.message || e), "bad");
+    } finally {
+      btn.disabled = false;
+      activeTransferIdx = -1;
+    }
+  } else {
+    // 开始
+    if (AI.isRecording()) { toast("先结束其他录音", "warn"); return; }
+    try {
+      await AI.start(btn);
+      activeTransferIdx = idx;
+      btn.classList.add("recording");
+      btn.textContent = "正在听…点此停止";
+    } catch (e) {
+      toast("无法访问麦克风，请允许权限后重试", "bad");
+    }
+  }
+}
+
+async function onAnchorMicClick(btn) {
+  if (!AI.supported()) { toast("当前浏览器不支持录音", "bad"); return; }
+  if (!ensureUnlockedOrWarn(learnFindUnitByKey(currentLearnKey))) return;
+  if (AI.isRecording() && activeTransferIdx === -1) {
+    btn.disabled = true;
+    try {
+      const blob = await AI.stop();
+      const b64 = await AI.blobToBase64(blob);
+      btn.classList.remove("recording");
+      btn.textContent = "识别中…";
+      const r = await AI.transcribe(b64);
+      if (!r.ok) { toast("识别失败：" + r.error, "bad"); btn.textContent = "🎤 重录"; return; }
+      anchorRecording = r.text || "";
+      $("learn-anchor-transcript").textContent = `你刚才说的：${anchorRecording}`;
+      btn.innerHTML = '<span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>再跟读一次</span><span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>';
+    } catch (e) {
+      toast("录音失败：" + (e && e.message || e), "bad");
+    } finally {
+      btn.disabled = false;
+    }
+  } else {
+    if (AI.isRecording()) { toast("先结束其他录音", "warn"); return; }
+    try {
+      await AI.start(btn);
+      activeTransferIdx = -1;
+      btn.classList.add("recording");
+      btn.textContent = "正在听…点此停止";
+    } catch (e) {
+      toast("无法访问麦克风", "bad");
+    }
+  }
+}
+
+async function submitTransfers() {
+  const pick = learnFindUnitByKey(currentLearnKey);
+  if (!pick) return;
+  const transcripts = transferDrafts.map((_, i) => transferRecordings[i] || "");
+  if (transcripts.some(t => !t.trim())) { toast("请先录完 3 题", "warn"); return; }
+  const btn = $("learn-submit-transfers-btn");
+  btn.disabled = true;
+  btn.textContent = "AI 评测中…";
+  try {
+    const ctx = {
+      cat: pick.cat,
+      topic: pick.topic.title,
+      unit: pick.unit.title,
+      anchor_en: pick.unit.anchor[0],
+      anchor_zh: pick.unit.anchor[1],
+      transfers: pick.unit.transfers.map((t, i) => ({
+        idx: i + 1,
+        scenario_zh: t.scenario_zh,
+        hint_zh: t.hint_zh,
+        sample_en: t.sample[0],
+        sample_zh: t.sample[1],
+        transcript: transcripts[i],
+      })),
+    };
+    const r = await AI.complete("transfer", JSON.stringify(ctx), {
+      systemPrompt: TRANSFER_SYSTEM,
+    });
+    if (!r.ok) {
+      // 失败也要在 result 区显示
+      const box = $("learn-transfer-result");
+      const t = $("learn-transfer-text");
+      box.classList.remove("hidden");
+      box.classList.add("ai-error");
+      t.innerHTML = `<div style="color:#b91c1c">❌ 评测失败：${escapeHtml(r.error)}<br><br>Edge Function 未部署时常见。可在 SETUP.md 查部署步骤。</div>`;
+      btn.textContent = "重试提交";
+      btn.disabled = false;
+      return;
+    }
+    // 解析：3 行 "Score:NN" 或对象 JSON
+    showTransferResult(r.text, transcripts);
+    // 标记 transfer 完成（quiz 没答前不算 unit 完成）
+    btn.textContent = "✓ 已提交，继续做题";
+    // 显示"开始测试"按钮
+    $("learn-quiz-btn").classList.remove("hidden");
+  } catch (e) {
+    toast("评测失败：" + (e && e.message || e), "bad");
+    btn.disabled = false;
+    btn.textContent = "重试提交";
+  }
+}
+
+function showTransferResult(text, transcripts) {
+  const box = $("learn-transfer-result");
+  const t = $("learn-transfer-text");
+  // 尝试解析为 JSON
+  let parsed = null;
+  try {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) parsed = JSON.parse(m[0]);
+  } catch {}
+  if (parsed && Array.isArray(parsed.scores)) {
+    transferResults = parsed.scores.map((s, i) => ({
+      score: Math.round(Number(s.score) || 0),
+      ok: Number(s.score) >= 60,
+      comment: s.comment || "",
+    }));
+    let avg = Math.round(transferResults.reduce((a, b) => a + b.score, 0) / transferResults.length);
+    let html = `<div class="transfer-summary">3 题平均 <b>${avg} 分</b></div><ol>`;
+    for (let i = 0; i < transferResults.length; i++) {
+      const r = transferResults[i];
+      const s = transferDrafts[i];
+      html += `<li class="${r.ok ? "ok" : "bad"}">
+        <div><b>第 ${i + 1} 题 · ${escapeHtml(s.scenario_zh)}</b>　<span class="transfer-score ${r.ok ? "ok" : "bad"}">${r.score} 分</span></div>
+        <div class="muted">你刚才说：${escapeHtml(transcripts[i])}</div>
+        ${r.comment ? `<div class="transfer-comment">${escapeHtml(r.comment)}</div>` : ""}
+      </li>`;
+    }
+    html += "</ol>";
+    if (parsed.overall) html += `<div class="transfer-overall">📝 ${escapeHtml(parsed.overall)}</div>`;
+    t.innerHTML = html;
+  } else {
+    // 兜底：直接显示 AI 文本
+    t.textContent = text;
+  }
+  box.classList.remove("hidden");
+  renderTransferList(); // 刷新 transfer 列表的分数徽章
+  // 滚动到结果
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+const TRANSFER_SYSTEM = "你是英语口语教练。用户学了 1 个核心英文句式，现在要用这个句式说 3 个不同的真实生活/工作场景（你拿到的是 3 个 transfer 场景 + 用户录音转写出的英文）。\n\n你的任务：\n1. 评估每个 transfer 是否用到了核心句式的 pattern（不是机械重复，而是合理套用）\n2. 语法、用词、流畅度是否过关\n3. 输出 JSON（严格按这个 schema，不要加任何其他文字）：\n{\"scores\":[{\"score\":85,\"comment\":\"...\"\"\"},{\"score\":70,\"comment\":\"...\"\"\"},{\"score\":90,\"comment\":\"...\"\"\"}],\"overall\":\"一句话总结：用户的最大问题 + 下一步建议\"}\n\n每题 score 范围 0-100：\n- 90+：几乎完美，句式正确，表达自然\n- 70-89：基本对，有小问题但能听懂\n- 50-69：能用但有明显错误\n- < 50：跑题或太基础，句式未体现\n\ncomment 用中文，简短具体（一句话点出最大问题 + 改进建议）。overall 一句话。"
 
 function updateQuizButtons() {
   const total = currentQuizData.unit.quiz.length;
@@ -488,6 +743,8 @@ function jumpToNextUnit() {
 }
 
 $("learn-quiz-btn").addEventListener("click", startQuiz);
+$("learn-anchor-mic-btn").addEventListener("click", e => onAnchorMicClick(e.currentTarget));
+$("learn-submit-transfers-btn").addEventListener("click", submitTransfers);
 $("quiz-prev-btn").addEventListener("click", () => {
   const i = currentQuizAnswers.findIndex(a => a === null);
   const prev = i === -1 ? currentQuizAnswers.length - 2 : i - 1;
