@@ -1,0 +1,6 @@
+node_modules/
+package.json
+package-lock.json
+
+# 助手/工具工作目录，绝不入库
+.workbuddy/

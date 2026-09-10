@@ -595,6 +595,172 @@ input:focus { border-color: var(--primary); }
 
 .learn-jump option:disabled { color: #94a3b8; }
 
+/* ---------- Anchor 母句卡片 ---------- */
+.learn-anchor-card {
+  border: 2px solid #93c5fd;
+  background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 0 0 18px;
+}
+.learn-anchor-label {
+  font-size: 12px;
+  color: #2563eb;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.learn-anchor-en {
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 6px;
+  line-height: 1.4;
+}
+.learn-anchor-zh {
+  font-size: 14px;
+  color: #475569;
+  margin: 0 0 6px;
+}
+.learn-anchor-tip {
+  font-size: 12px;
+  color: #6b7280;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 6px 10px;
+  border-radius: 8px;
+  margin: 0 0 10px;
+}
+.learn-anchor-mic { margin-top: 4px; }
+.learn-anchor-transcript {
+  font-size: 13px;
+  color: #059669;
+  font-style: italic;
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+}
+
+/* ---------- Transfer（举一反三）卡片 ---------- */
+.learn-transfers-header {
+  font-size: 13px;
+  color: #b45309;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.learn-transfers-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.transfer-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  transition: border-color 0.15s, background 0.15s;
+}
+.transfer-card.done {
+  border-color: #86efac;
+  background: linear-gradient(135deg, #f0fdf4, #ffffff);
+}
+.transfer-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.transfer-num {
+  display: inline-block;
+  min-width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  background: #f59e0b;
+  color: white;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 13px;
+}
+.transfer-scenario { font-size: 15px; color: #1e293b; }
+.transfer-hint summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #6b7280;
+  user-select: none;
+  padding: 2px 0;
+}
+.transfer-hint p { font-size: 13px; color: #475569; margin: 6px 0; }
+.transfer-rec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.transfer-transcript {
+  flex: 1;
+  min-width: 200px;
+  font-size: 13px;
+  color: #059669;
+  background: #f0fdf4;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.transfer-transcript i { color: #9ca3af; font-style: italic; }
+.transfer-score {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.transfer-score.ok { background: #bbf7d0; color: #047857; }
+.transfer-score.bad { background: #fecaca; color: #b91c1c; }
+.transfer-sample { margin-top: 8px; }
+.transfer-sample summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #6366f1;
+  user-select: none;
+}
+.transfer-sample p { margin: 4px 0; font-size: 13px; }
+
+/* transfer AI 评测结果 */
+.transfer-summary {
+  font-size: 15px;
+  font-weight: 600;
+  color: #2563eb;
+  margin-bottom: 10px;
+}
+#learn-transfer-text ol { padding-left: 20px; }
+#learn-transfer-text li {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #94a3b8;
+  background: #f8fafc;
+}
+#learn-transfer-text li.ok { border-left-color: #22c55e; background: #f0fdf4; }
+#learn-transfer-text li.bad { border-left-color: #ef4444; background: #fef2f2; }
+.transfer-comment {
+  font-size: 13px;
+  color: #475569;
+  margin-top: 4px;
+  font-style: italic;
+}
+.transfer-overall {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #eff6ff;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e293b;
+}
+
 .learn-progress {
   font-weight: 600;
   color: var(--primary);

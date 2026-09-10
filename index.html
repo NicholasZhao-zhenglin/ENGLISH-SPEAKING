@@ -37,7 +37,7 @@
     <!-- 今日学习：5 句一组，每天学一个小版块 -->
     <section id="learn-mode" class="panel" data-page-node-id="learn-mode-node">
       <div id="learn-today-banner" class="learn-banner"></div>
-      <!-- 学习视图 -->
+      <!-- 学习视图：anchor + 3 个 transfer 题（必须语音）-->
       <div id="learn-view" data-page-node-id="learn-view-node">
         <div class="learn-card" data-page-node-id="learn-card-node">
           <div class="learn-meta" data-page-node-id="learn-meta-node">
@@ -49,16 +49,39 @@
             <span id="learn-topic-title"></span>
           </div>
           <h2 id="learn-unit-title" class="learn-unit-title" data-page-node-id="learn-unit-title-node"></h2>
-          <ol id="learn-sentences" class="learn-sentences" data-page-node-id="learn-sentences-node"></ol>
+
+          <!-- 核心 anchor 句（学 1 句） -->
+          <div id="learn-anchor-card" class="learn-anchor-card" data-page-node-id="learn-anchor-card-node">
+            <div class="learn-anchor-label">⭐ 今天的母句（先跟读 3 遍）</div>
+            <p id="learn-anchor-en" class="learn-anchor-en"></p>
+            <p id="learn-anchor-zh" class="learn-anchor-zh"></p>
+            <p id="learn-anchor-tip" class="learn-anchor-tip"></p>
+            <button id="learn-anchor-mic-btn" class="mic-btn learn-anchor-mic" type="button">
+              <span class="mic-idle"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>跟读母句（点我说）</span>
+              <span class="mic-active"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>停止</span>
+            </button>
+            <p id="learn-anchor-transcript" class="learn-anchor-transcript"></p>
+          </div>
+
+          <!-- 3 个 transfer 题（必须语音） -->
+          <div class="learn-transfers-header">🎯 举一反三：用母句的句式说下面 3 个场景（必须用麦克风）</div>
+          <div id="learn-transfers-list" class="learn-transfers-list"></div>
+
+          <!-- transfer 评测结果区 -->
+          <div id="learn-transfer-result" class="ai-result hidden">
+            <div class="ai-result-header">🎯 举一反三 · AI 评测</div>
+            <p id="learn-transfer-text" class="ai-text"></p>
+          </div>
+
+          <div class="learn-actions" data-page-node-id="learn-actions-node">
+            <button id="learn-submit-transfers-btn" class="primary-btn" disabled>📤 提交 3 题评测</button>
+            <button id="learn-quiz-btn" class="primary-btn hidden" data-page-node-id="learn-quiz-btn-node">开始测试 →</button>
+          </div>
 
           <details class="learn-summary" data-page-node-id="learn-summary-node">
             <summary>📌 学完看知识要点（建议先自己说出来再看答案）</summary>
             <ul id="learn-summary-list" class="learn-summary-list"></ul>
           </details>
-
-          <div class="learn-actions" data-page-node-id="learn-actions-node">
-            <button id="learn-quiz-btn" class="primary-btn" data-page-node-id="learn-quiz-btn-node">开始测试 →</button>
-          </div>
         </div>
       </div>
 
