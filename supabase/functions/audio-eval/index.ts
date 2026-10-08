@@ -24,7 +24,7 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 const QWEN_ENDPOINT =
-  "https://dashscope.aliycs.com/api/v1/services/aigc/multimodal-generation/generation";
+  "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation";
 
 // 强制 STT 模式：只转写，不要任何回复/评测/思考
 const STT_SYSTEM =
